@@ -6,8 +6,13 @@ import { Octokit } from 'octokit';
 import { aspenIngest, supabase } from './supabase.js';
 import crypto from 'crypto';
 
-const GITHUB_OWNER = 'GlacierEQ';
-const CASE_ID      = '1FDV-23-0001009';
+const GITHUB_OWNER = process.env.GITHUB_OWNER || 'GlacierEQ';
+// CASE_ID is read from env; never hardcode case identifiers in source.
+const CASE_ID = process.env.CASE_ID;
+if (!CASE_ID) {
+  // Lazy-fail: only matters for apex.* tools. Other tools still work.
+  console.warn('[colossus] CASE_ID env not set — apex.* tools will be unavailable.');
+}
 
 function getClients() {
   return {
@@ -17,16 +22,40 @@ function getClients() {
   };
 }
 
+/**
+ * Deterministic canonical JSON serializer.
+ * Recursively sorts object keys at every depth so that semantically
+ * identical objects always serialize to the same string.
+ * Arrays preserve order. Primitives serialize as JSON.
+ */
+export function canonicalize(value: any): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return '[' + value.map(canonicalize).join(',') + ']';
+  }
+  const keys = Object.keys(value).sort();
+  return '{' + keys.map(k => JSON.stringify(k) + ':' + canonicalize(value[k])).join(',') + '}';
+}
+
 export async function createHash(data: any): Promise<string> {
-  const str = JSON.stringify(data, Object.keys(data || {}).sort());
+  const str = canonicalize(data);
   return crypto.createHash('sha256').update(str).digest('hex');
+}
+
+function requireCaseId(): string {
+  if (!CASE_ID) {
+    throw new Error('CASE_ID env var is required for apex.* tools. Set it in Vercel project settings.');
+  }
+  return CASE_ID;
 }
 
 export async function executeUniversal(toolName: string, payload: any = {}) {
   const { octokit, notion, dbx } = getClients();
   let result: any;
 
-  // ── GitHub ────────────────────────────────────────────────────
+  // ── GitHub ───────────────────────────────────────
   if (toolName === 'github.write_file') {
     const { data } = await octokit.rest.repos.createOrUpdateFileContents({
       owner:   GITHUB_OWNER,
@@ -50,7 +79,7 @@ export async function executeUniversal(toolName: string, payload: any = {}) {
     });
     result = data;
 
-  // ── Notion ────────────────────────────────────────────────────
+  // ── Notion ───────────────────────────────────────
   } else if (toolName === 'notion.create_page') {
     result = await notion.pages.create(payload);
 
@@ -63,7 +92,7 @@ export async function executeUniversal(toolName: string, payload: any = {}) {
   } else if (toolName === 'notion.update_page') {
     result = await notion.pages.update({ page_id: payload.page_id, properties: payload.properties });
 
-  // ── Dropbox ───────────────────────────────────────────────────
+  // ── Dropbox ──────────────────────────────────────
   } else if (toolName === 'dropbox.upload') {
     result = await dbx.filesUpload({ path: payload.path, contents: payload.contents });
 
@@ -73,29 +102,32 @@ export async function executeUniversal(toolName: string, payload: any = {}) {
   } else if (toolName === 'dropbox.get_link') {
     result = await dbx.sharingCreateSharedLinkWithSettings({ path: payload.path });
 
-  // ── Apex / Supabase ───────────────────────────────────────────
+  // ── Apex / Supabase ────────────────────────────────
   } else if (toolName === 'apex.timeline') {
+    const caseId = requireCaseId();
     const { data } = await supabase
       .from('apex_integration_events')
       .select('*')
-      .eq('case_id', CASE_ID)
+      .eq('case_id', caseId)
       .order('created_at', { ascending: false })
       .limit(payload.limit || 50);
     result = data;
 
   } else if (toolName === 'apex.ingest') {
+    const caseId = requireCaseId();
     const pointer = await aspenIngest(
       payload.type    || 'manual',
       payload.title   || 'Manual ingest',
       payload.metadata || {},
     );
-    result = { pointer, status: 'ingested', case: CASE_ID };
+    result = { pointer, status: 'ingested', case: caseId };
 
   } else if (toolName === 'apex.search') {
+    const caseId = requireCaseId();
     const { data } = await supabase
       .from('apex_integration_events')
       .select('*')
-      .eq('case_id', CASE_ID)
+      .eq('case_id', caseId)
       .ilike('title', `%${payload.q}%`)
       .order('created_at', { ascending: false })
       .limit(20);
