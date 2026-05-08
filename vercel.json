@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "name": "colossus-gateway",
+  "framework": null,
+  "buildCommand": "npm run build",
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@5",
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    { "src": "/api/mcp",    "dest": "/api/mcp.ts"    },
+    { "src": "/api/health", "dest": "/api/health.ts" },
+    { "src": "/api/voice",  "dest": "/api/voice.ts"  }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
