@@ -1,0 +1,86 @@
+COLOSSUS GATEWAY — PROPRIETARY LICENSE
+Copyright (c) 2026 GlacierEQ. All Rights Reserved.
+
+1. OWNERSHIP
+This software, including all source code, configuration, documentation, schemas,
+binary artifacts, and derivative works (collectively, the "Software"), is the
+exclusive property of the copyright holder ("Owner"). No title, ownership, or
+intellectual property right of any kind is transferred by viewing, cloning,
+forking, or otherwise accessing this repository.
+
+2. NO LICENSE GRANTED
+No license is granted, expressly or by implication, estoppel, or otherwise.
+Without the prior written and signed consent of the Owner, no person or entity
+may:
+  (a) use, execute, deploy, or operate the Software, in whole or in part;
+  (b) copy, fork, mirror, archive, or reproduce the Software in any medium;
+  (c) modify, adapt, translate, or create derivative works of the Software;
+  (d) distribute, sublicense, sell, lease, lend, or transfer the Software;
+  (e) reverse engineer, decompile, or disassemble the Software, except to the
+      minimum extent permitted by non-waivable applicable law;
+  (f) use the Software, or any portion of it, as training data, fine-tuning
+      data, embedding source, or context for any machine-learning model,
+      large-language model, retrieval system, or AI system of any kind;
+  (g) publish, disclose, or reference the Software in academic, journalistic,
+      governmental, or commercial publications.
+
+3. CONFIDENTIALITY
+The Software is confidential and proprietary. Any access granted by the Owner
+is subject to a duty of confidentiality. Authorized collaborators agree to
+protect the Software with at least the same care they use for their own
+confidential information, and in no event with less than reasonable care.
+
+4. LEGAL PROCESS / DISCOVERY
+This repository is part of an active legal matter. The Software may be
+referenced in, but is not subject to compulsory production through, third-party
+platforms. Any subpoena, court order, discovery request, preservation demand,
+or other legal process seeking the Software or its contents must be served
+directly on the Owner at an address the Owner designates in writing, and not on
+GitHub, Inc., any hosting provider, or any collaborator. Service on a hosting
+provider does not constitute service on the Owner. The Owner reserves all
+rights to object, quash, narrow, seek protective orders, and assert all
+applicable privileges, including attorney work product, attorney-client,
+and any statutory or constitutional privilege. Nothing in this license waives,
+limits, or qualifies any such privilege or right.
+
+5. NO WAIVER BY DISCLOSURE
+The Owner may, at the Owner's sole discretion, voluntarily disclose portions
+of the Software for demonstrative, illustrative, or evidentiary purposes. No
+such voluntary disclosure constitutes a waiver of confidentiality, privilege,
+or any right with respect to the Software as a whole or any other portion of
+it. Selective disclosure is expressly reserved.
+
+6. ACTIVE LITIGATION NOTICE
+This Software is associated with case 1FDV-23-0001009 (Hawaii Family Court).
+Unauthorized access, copying, modification, or distribution may be referenced
+in those proceedings and may give rise to civil and criminal liability
+(including under 18 U.S.C. § 1030 and analogous state statutes).
+
+7. ACCESS LOGGING
+All access to this repository is logged. Logs may be preserved as evidence.
+
+8. NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING WITHOUT LIMITATION WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+9. LIMITATION OF LIABILITY
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE OWNER BE LIABLE
+FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+10. GOVERNING LAW; VENUE
+This license is governed by the laws of the State of Hawaii, United States of
+America, without regard to conflict-of-laws principles. Exclusive venue for
+any dispute lies in the state and federal courts located in Honolulu, Hawaii.
+
+11. SEVERABILITY
+If any provision of this license is held unenforceable, the remaining
+provisions remain in full force and effect.
+
+12. ENTIRE AGREEMENT
+This license is the entire agreement between the Owner and any party accessing
+the Software regarding the subject matter herein and supersedes all prior or
+contemporaneous understandings.
+
+ALL RIGHTS NOT EXPRESSLY GRANTED ARE RESERVED.
