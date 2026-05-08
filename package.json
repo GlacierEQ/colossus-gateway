@@ -1,0 +1,25 @@
+{
+  "name": "colossus-gateway",
+  "version": "2.1.0",
+  "description": "Universal MCP Bridge - GlacierEQ/Operator — APEX Engine (GitHub, Notion, Dropbox, Supabase)",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.8",
+    "dropbox": "^10.34.0",
+    "@notionhq/client": "^2.2.15",
+    "octokit": "^4.0.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "isomorphic-fetch": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "tsx": "^4.19.0"
+  }
+}
