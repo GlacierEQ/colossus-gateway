@@ -23,6 +23,7 @@ import { registerLongHorizon, registerBraveFrontier } from "../logic/index.js";
 import { registerMyceliumTools } from "../mycelium/index.js";
 import { registerShadowCompanion } from "../mycelium/shadowCompanion.js";
 import { registerGitHubTools } from "./github.js";
+import { registerOllamaTools } from "./ollama.js";
 
 export function registerTools(server: McpServer) {
   registerUniversalExecute(server);
@@ -50,4 +51,5 @@ export function registerTools(server: McpServer) {
   registerMyceliumTools(server);
   registerShadowCompanion(server);
   registerGitHubTools(server);
+  registerOllamaTools(server);
 }
