@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/daily",
+      "schedule": "0 14 * * *"
+    }
+  ],
+  "functions": {
+    "api/daily.ts": {
+      "maxDuration": 60
+    }
+  }
+}
