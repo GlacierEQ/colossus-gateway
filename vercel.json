@@ -1,13 +1,17 @@
 {
-  "crons": [
+  "version": 2,
+  "builds": [
     {
-      "path": "/api/daily",
-      "schedule": "0 14 * * *"
+      "src": "api/**/*.ts",
+      "use": "@vercel/node"
     }
   ],
-  "functions": {
-    "api/daily.ts": {
-      "maxDuration": 60
-    }
+  "routes": [
+    { "src": "/health", "dest": "/api/health.ts" },
+    { "src": "/mcp", "dest": "/api/mcp.ts" },
+    { "src": "/(.*)", "dest": "/api/mcp.ts" }
+  ],
+  "env": {
+    "NODE_ENV": "production"
   }
 }
