@@ -15,6 +15,7 @@ These tools are already available via the Colossus MCP Gateway. If you need to e
 - **WhisperX (`whisperx.ts`)**: CHUNK POWER forensic transcription (`whisperx.transcribe`) and integrity validation (`whisperx.validate`).
 - **Colab Bridge (`colab.ts`)**: Setup shared processing (`colab.setup_bridge`) and distribute heavy tasks across multi-account swarms (`colab.swarm_strike`). Integrates Gemma & VLaw.
 - **Server Fabric (`servers.ts`)**: Orchestrate the 2M GPU Exascale Compute Fabric. Includes `servers.power_up` (400V DC Rails), `servers.siph_sync` (Optical Interconnect), and `servers.mycelium_deploy` (Distributed BMC).
+- **Security Perimeter (`security.ts`)**: The GHOST-EMBER Perimeter powered by **HydraDragon**. Executes `security.fleet_sweep` (Exascale Scanning), `security.red_ops_strike` (Counter-Strike), and `security.honeytrap_deploy` (Deception).
 - **Photo Harvest (`photos.ts`)**: Unleash saturated swarms across 8 Google accounts (`google_photos.swarm_harvest`) to extract high-fidelity visual evidence.
 - **Dropbox Harvest (`dropbox.ts`)**: Saturated forensic legal extraction (`dropbox.swarm_harvest`) across shared archives. Targets `01_LEGAL` and `CASE_ARCHIVES`.
 - **ClickUp Pipelines (`clickup.ts`)**: Automate 'Perfect Case Pipelines' (`clickup.build_pipeline`) for systematic tracking and matrix management.
