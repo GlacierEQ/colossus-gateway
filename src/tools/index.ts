@@ -19,6 +19,8 @@ import { registerExpansionTools } from "./expansion.js";
 import { registerPhotoTools } from "./photos.js";
 import { registerDropboxTools } from "./dropbox.js";
 import { registerClickUpTools } from "./clickup.js";
+import { registerEnergyTools } from "./energy.js";
+import { registerSecurityTools } from "./security.js";
 import { registerLongHorizon, registerBraveFrontier } from "../logic/index.js";
 import { registerMyceliumTools } from "../mycelium/index.js";
 import { registerShadowCompanion } from "../mycelium/shadowCompanion.js";
@@ -46,6 +48,8 @@ export function registerTools(server: McpServer) {
   registerPhotoTools(server);
   registerDropboxTools(server);
   registerClickUpTools(server);
+  registerEnergyTools(server);
+  registerSecurityTools(server);
   registerLongHorizon(server);
   registerBraveFrontier(server);
   registerMyceliumTools(server);

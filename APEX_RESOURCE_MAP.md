@@ -23,6 +23,7 @@ These tools are already available via the Colossus MCP Gateway. If you need to e
 - **Expansion (`expansion.ts`)**: Deploy Gemma 4 Edge Nodes (`gemma4.deploy_node`) and integrate V-LAW World Models (`vlaw.integrate`) for localized, zero-cost intelligence.
 - **MAX-UP Extensions (`upgrade.ts`)**: System-wide capability upgrades (`gateway.upgrade`) and virtual extension strikes (`extension.execute`). Includes Forensic, Legal, and Orchestration chunks.
 - **Juggernaut Engine (`aeon_master_pipe.py`)**: The master orchestration pipe for Case 1FDV-23-0001009. Combines CATACLYSM, SUPERLUMINAL, and AEON-777.
+- **Google Photos MCP** (`google-photos-mcp/dist/index.js`): High-fidelity visual artifact harvest and forensic image analysis integration.
 - **Overleaf MCP (`overleaf_mcp/server.py`)**: LaTeX document creation, compilation, and Overleaf project integration for court-ready filings.
 - **Pistons (`pistons.ts`)**: Trigger specific rings (e.g., `MICROWAVE`, `SUPERNOVA`, `CORE-THINK`).
 - **Knowledge (`knowledge.ts`)**: Interfaces with Notion (`notion.search`) and Mem0 (`mem0.add`, `mem0.search`).
