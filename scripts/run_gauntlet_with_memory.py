@@ -1,94 +1,129 @@
 #!/usr/bin/env python3
 """
 run_gauntlet_with_memory.py
----------------------------
-CLI entrypoint: load any Colossus gauntlet module, patch its run()
-with memory hooks, execute it, and report the memory write status.
+===========================
+CLI runner: execute a named Colossus gauntlet and persist results to memory.
 
 Usage:
-    python scripts/run_gauntlet_with_memory.py \
-        --module xai_colossus_energy.gauntlets.feeder_overload \
-        --repo xai-colossus-energy \
-        --scenario feeder_overload_n1 \
-        --tags grid EJ P1
+    python scripts/run_gauntlet_with_memory.py --gauntlet energy.feeder_overload
+    python scripts/run_gauntlet_with_memory.py --gauntlet servers.rack_failure --params '{"rack": "rack-07"}'
+    python scripts/run_gauntlet_with_memory.py --list
+    python scripts/run_gauntlet_with_memory.py --patch-status
 
-    # Or use a pre-mapped key:
-    python scripts/run_gauntlet_with_memory.py --key energy:feeder_overload
-
-    # Fail if memory write fails (useful in CI):
-    python scripts/run_gauntlet_with_memory.py --key energy:feeder_overload --fail-on-memory-error
+Options:
+    --gauntlet NAME     Run the named gauntlet (format: repo.gauntlet_name)
+    --params JSON       JSON string of parameters to pass to the gauntlet
+    --list              List all registered gauntlets
+    --patch-status      Show which gauntlet patches are applied
+    --fail-on-fail      Exit code 1 if gauntlet result is FAIL or ERROR
+    --dry-run           Run the gauntlet but do not write to memory
 """
 
-from __future__ import annotations
-
 import argparse
-import logging
+import json
 import sys
-import time
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
-    datefmt="%H:%M:%S",
+from src.memory.gauntlet_patch import (
+    patch_all,
+    patch_report,
+    PATCH_REGISTRY,
 )
-log = logging.getLogger("run_gauntlet_with_memory")
+from src.memory.memory_hooks import GauntletSession
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Run a Colossus gauntlet with memory hooks.")
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--key", help="Short key from REPO_SCENARIO_MAP, e.g. energy:feeder_overload")
-    group.add_argument("--module", help="Dotted module path, e.g. xai_colossus_energy.gauntlets.feeder_overload")
-    parser.add_argument("--repo", help="Repo name (required with --module)")
-    parser.add_argument("--scenario", help="Scenario name (required with --module)")
-    parser.add_argument("--tags", nargs="*", default=[], help="Extra tags")
-    parser.add_argument("--fail-on-memory-error", action="store_true", default=False)
+GAUNTLET_MAP = {
+    "energy.feeder_overload":    ("xai_colossus_energy.gauntlets.feeder",     "run_feeder_overload"),
+    "energy.training_surge":     ("xai_colossus_energy.gauntlets.training",   "run_training_surge"),
+    "energy.turbine_trip":       ("xai_colossus_energy.gauntlets.turbine",    "run_turbine_trip"),
+    "servers.rack_failure":      ("xai_colossus_servers.gauntlets.rack",      "run_rack_failure"),
+    "servers.firmware":          ("xai_colossus_servers.gauntlets.firmware",  "run_firmware_gauntlet"),
+    "cooling.hot_aisle":         ("xai_colossus_cooling.gauntlets.hot_aisle", "run_hot_aisle_overtemp"),
+    "cooling.pump_failure":      ("xai_colossus_cooling.gauntlets.pump",      "run_pump_failure"),
+    "cooling.water_restriction": ("xai_colossus_cooling.gauntlets.water",     "run_water_restriction"),
+    "security.config_drift":     ("xai_colossus_security.gauntlets.config",   "run_config_drift_check"),
+    "apex.orchestration":        ("doctor_strange.apex.orchestrator",         "run_apex_loop"),
+}
+
+
+def list_gauntlets():
+    print("Registered gauntlets:")
+    for name, (module, func) in GAUNTLET_MAP.items():
+        print(f"  {name:<35}  →  {module}.{func}")
+
+
+def show_patch_status():
+    results = patch_all(fail_silent=True)
+    print(patch_report(results))
+
+
+def run_gauntlet(name: str, params: dict, fail_on_fail: bool, dry_run: bool):
+    if name not in GAUNTLET_MAP:
+        print(f"ERROR: Unknown gauntlet '{name}'. Use --list to see options.")
+        sys.exit(1)
+
+    module_path, func_name = GAUNTLET_MAP[name]
+    repo = name.split(".")[0]
+
+    # dynamic import
+    try:
+        import importlib
+        mod = importlib.import_module(module_path)
+        func = getattr(mod, func_name)
+    except (ImportError, AttributeError) as exc:
+        print(f"ERROR: Could not load {module_path}.{func_name}: {exc}")
+        print("Hint: the target repo may not be installed yet. pip install -e <repo>")
+        sys.exit(2)
+
+    print(f"Running gauntlet: {name}")
+    print(f"  Module : {module_path}.{func_name}")
+    print(f"  Params : {json.dumps(params)}")
+    print(f"  Memory : {'disabled (dry-run)' if dry_run else 'enabled'}")
+    print()
+
+    if dry_run:
+        result = func(**params)
+    else:
+        with GauntletSession(scenario_type=repo, tags=[name]) as session:
+            result = func(**params)
+            session.record(result)
+
+    # print result
+    if isinstance(result, dict):
+        print(json.dumps(result, indent=2))
+    else:
+        print(result)
+
+    status = result.get("status", "UNKNOWN") if isinstance(result, dict) else "UNKNOWN"
+    print(f"\nStatus: {status}")
+
+    if fail_on_fail and status not in ("PASS", "OK", "SUCCESS"):
+        sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Colossus gauntlet runner with memory")
+    parser.add_argument("--gauntlet", help="Gauntlet name (repo.gauntlet)")
+    parser.add_argument("--params", default="{}", help="JSON params")
+    parser.add_argument("--list", action="store_true", help="List gauntlets")
+    parser.add_argument("--patch-status", action="store_true", help="Show patch status")
+    parser.add_argument("--fail-on-fail", action="store_true", help="Exit 1 on FAIL")
+    parser.add_argument("--dry-run", action="store_true", help="Skip memory writes")
     args = parser.parse_args()
 
-    from src.memory.gauntlet_memory_patch import patch_gauntlet, patch_known_gauntlet
+    if args.list:
+        list_gauntlets()
+        return
 
-    try:
-        if args.key:
-            g = patch_known_gauntlet(args.key)
-        else:
-            if not args.repo or not args.scenario:
-                parser.error("--repo and --scenario are required with --module")
-            g = patch_gauntlet(
-                module=args.module,
-                repo=args.repo,
-                scenario=args.scenario,
-                tags=args.tags,
-            )
-    except (KeyError, AttributeError, ImportError) as exc:
-        log.error("Patch failed: %s", exc)
-        return 2
+    if args.patch_status:
+        show_patch_status()
+        return
 
-    t0 = time.monotonic()
-    log.info("Running %s/%s ...", g.repo, g.scenario)
+    if not args.gauntlet:
+        parser.print_help()
+        sys.exit(1)
 
-    try:
-        result = g.run()
-    except SystemExit as exc:
-        # Some gauntlets call sys.exit() directly
-        return int(exc.code) if exc.code is not None else 0
-    except Exception as exc:  # noqa: BLE001
-        log.error("Gauntlet raised uncaught exception: %s", exc)
-        return 1
-
-    elapsed = time.monotonic() - t0
-    passed = bool(result.get("passed", False)) if isinstance(result, dict) else False
-    status = "PASS" if passed else "FAIL"
-
-    log.info("[%s] %s/%s completed in %.2fs", status, g.repo, g.scenario, elapsed)
-
-    if not passed:
-        failures = result.get("failures", []) if isinstance(result, dict) else []
-        for f in failures:
-            log.error("  FAIL: %s", f)
-        return 1
-
-    return 0
+    params = json.loads(args.params)
+    run_gauntlet(args.gauntlet, params, args.fail_on_fail, args.dry_run)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

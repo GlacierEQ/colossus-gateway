@@ -1,0 +1,73 @@
+name: Gauntlet Memory CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  memory-health:
+    name: Memory Backend Health
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt || true
+          pip install pinecone-client httpx python-dotenv pytest pytest-asyncio || true
+
+      - name: Run memory health check
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX: ${{ secrets.PINECONE_INDEX }}
+          SUPERMEMORY_API_KEY: ${{ secrets.SUPERMEMORY_API_KEY }}
+        run: |
+          python scripts/run_memory_health.py --fail-on-degraded
+        continue-on-error: true  # don't block CI if keys aren't set yet
+
+  memory-hooks-tests:
+    name: Memory Hooks Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio python-dotenv
+          pip install pinecone-client httpx || true
+
+      - name: Run memory hooks tests
+        run: |
+          python -m pytest src/memory/tests/test_memory_hooks.py -v
+
+  gauntlet-patch-status:
+    name: Gauntlet Patch Status
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pytest python-dotenv
+          pip install pinecone-client httpx || true
+
+      - name: Show gauntlet patch coverage
+        run: |
+          python scripts/run_gauntlet_with_memory.py --patch-status
