@@ -9,6 +9,9 @@
   "routes": [
     { "src": "/health", "dest": "/api/health.ts" },
     { "src": "/mcp", "dest": "/api/mcp.ts" },
+    { "src": "/api/memory/add", "dest": "/api/memory/add.ts" },
+    { "src": "/api/memory/search", "dest": "/api/memory/search.ts" },
+    { "src": "/api/memory/delete", "dest": "/api/memory/delete.ts" },
     { "src": "/(.*)", "dest": "/api/mcp.ts" }
   ],
   "env": {
