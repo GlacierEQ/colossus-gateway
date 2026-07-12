@@ -2,14 +2,24 @@ import "dotenv/config";
 import http from "http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { server } from "./server.js";
+import { ANSWER, GATEWAY_VERSION, SESSION_IDLE_S } from "./constants.js";
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 const httpServer = http.createServer(async (req, res) => {
   // Health check
   if (req.method === "GET" && req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", gateway: "colossus-gateway", version: "2.1.0", timestamp: new Date().toISOString() }));
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        gateway: "colossus-gateway",
+        version: GATEWAY_VERSION,
+        session_idle_s: SESSION_IDLE_S,
+        answer: ANSWER,
+        timestamp: new Date().toISOString(),
+      })
+    );
     return;
   }
 
@@ -33,5 +43,5 @@ const httpServer = http.createServer(async (req, res) => {
 });
 
 httpServer.listen(PORT, () => {
-  console.error(`🚀 COLOSSUS GATEWAY v2.1 — HTTP LIVE on port ${PORT}`);
+  console.error(`🚀 COLOSSUS GATEWAY ${GATEWAY_VERSION} — HTTP LIVE on port ${PORT}`);
 });
