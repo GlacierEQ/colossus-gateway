@@ -1,8 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { auditLedger } from '../src/bridge/audit.js';
 import { executeTool } from '../src/bridge/toolBridge.js';
 
 const DELEGATED_MAX_BYTES = 1024 * 1024;
+const SHA256 = /^[0-9a-f]{64}$/;
 
 function header(req: IncomingMessage, name: string): string | undefined {
   const value = req.headers[name.toLowerCase()];
@@ -32,6 +34,18 @@ function delegatedCapabilityRead(input: any): boolean {
   }
 }
 
+function connectorHandoff(input: any): boolean {
+  if (!input || !['box_get', 'box_download'].includes(input.name) || !input.arguments || typeof input.arguments !== 'object') return false;
+  const args = input.arguments;
+  return typeof args.connector_content_base64 === 'string'
+    && typeof args.connector_file_name === 'string'
+    && typeof args.connector_content_type === 'string'
+    && typeof args.connector_source === 'string'
+    && typeof args.connector_sha256 === 'string'
+    && SHA256.test(args.connector_sha256.toLowerCase())
+    && Buffer.byteLength(args.connector_content_base64, 'utf8') <= Math.ceil(DELEGATED_MAX_BYTES * 4 / 3) + 4;
+}
+
 async function body(req: IncomingMessage): Promise<any> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -49,7 +63,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.writeHead(204, {
       'access-control-allow-origin': '*',
       'access-control-allow-methods': 'POST, OPTIONS',
-      'access-control-allow-headers': 'authorization, content-type, x-box-access-token, x-colossus-actor, x-request-id',
+      'access-control-allow-headers': 'authorization, content-type, x-apex-capability, x-box-access-token, x-colossus-actor, x-request-id',
     });
     res.end();
     return;
@@ -67,8 +81,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       res.end(JSON.stringify({ error: 'body must contain name and arguments' }));
       return;
     }
+
     const delegatedRead = delegatedCapabilityRead(input);
-    if (!authorized(req) && !delegatedRead) {
+    const connectorRead = connectorHandoff(input);
+    let connectorAuthorized = false;
+    if (!authorized(req) && !delegatedRead && connectorRead) {
+      connectorAuthorized = await auditLedger.consumeCapability(
+        header(req, 'x-apex-capability') || '',
+        input.name,
+        String(input.arguments.connector_sha256).toLowerCase(),
+      );
+    }
+    if (!authorized(req) && !delegatedRead && !connectorAuthorized) {
       res.writeHead(401, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: 'unauthorized' }));
       return;
@@ -78,11 +102,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       input.arguments.max_bytes = Math.min(requested, DELEGATED_MAX_BYTES);
     }
 
+    const source = connectorAuthorized
+      ? 'https-function-call:approved-connector-handoff'
+      : delegatedRead
+        ? 'https-function-call:delegated-box-capability'
+        : 'https-function-call';
     const result = await executeTool(input.name, input.arguments, {
       boxAccessToken: header(req, 'x-box-access-token'),
-      actor: header(req, 'x-colossus-actor') || (delegatedRead ? 'box-delegated-capability' : 'https-client'),
+      actor: header(req, 'x-colossus-actor') || (connectorAuthorized ? 'approved-connector-relay' : delegatedRead ? 'box-delegated-capability' : 'https-client'),
       requestId: header(req, 'x-request-id'),
-      source: delegatedRead ? 'https-function-call:delegated-box-capability' : 'https-function-call',
+      source,
     });
     const failure = result.ok ? undefined : result.error;
     res.writeHead(result.ok ? 200 : (failure?.status || 500), {
