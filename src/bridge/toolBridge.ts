@@ -1,7 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { auditLedger } from './audit.js';
 import { BoxApiError, BoxClient } from './boxClient.js';
 import type { BridgeRequestContext } from './context.js';
+
+const CONNECTOR_HANDOFF_MAX_BYTES = 1024 * 1024;
+const SHA256 = /^[0-9a-f]{64}$/;
 
 export interface ToolDefinition {
   type: 'function';
@@ -18,6 +21,21 @@ const object = (properties: Record<string, unknown>, required: string[] = []) =>
   required,
 });
 
+const connectorHandoffFields = {
+  connector_content_base64: { type: ['string', 'null'] },
+  connector_file_name: { type: ['string', 'null'] },
+  connector_content_type: { type: ['string', 'null'] },
+  connector_sha256: { type: ['string', 'null'] },
+  connector_source: { type: ['string', 'null'] },
+};
+const connectorHandoffRequired = [
+  'connector_content_base64',
+  'connector_file_name',
+  'connector_content_type',
+  'connector_sha256',
+  'connector_source',
+];
+
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: 'function', name: 'box_search', strict: true,
@@ -32,7 +50,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     type: 'function', name: 'box_get', strict: true,
-    description: 'Get Box file or folder metadata. A delegated one-use Box download URL can provide bounded content retrieval.',
+    description: 'Get Box file or folder metadata and optionally content through direct Box access, a delegated Box URL, or an approved connector handoff.',
     parameters: object({
       item_id: { type: 'string', minLength: 1 },
       item_type: { type: ['string', 'null'], enum: ['file', 'folder', null] },
@@ -40,17 +58,19 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       max_bytes: { type: ['integer', 'null'], minimum: 1, maximum: 20971520 },
       delegated_download_url: { type: ['string', 'null'] },
       delegated_file_name: { type: ['string', 'null'] },
-    }, ['item_id', 'item_type', 'include_content', 'max_bytes', 'delegated_download_url', 'delegated_file_name']),
+      ...connectorHandoffFields,
+    }, ['item_id', 'item_type', 'include_content', 'max_bytes', 'delegated_download_url', 'delegated_file_name', ...connectorHandoffRequired]),
   },
   {
     type: 'function', name: 'box_download', strict: true,
-    description: 'Download a Box file and return base64 bytes, content type, size, file name, and SHA-256. Limited to 20 MB.',
+    description: 'Download a Box file and return base64 bytes, content type, size, file name, and SHA-256 through direct Box access, a delegated Box URL, or an approved connector handoff.',
     parameters: object({
       file_id: { type: 'string', minLength: 1 },
       max_bytes: { type: ['integer', 'null'], minimum: 1, maximum: 20971520 },
       delegated_download_url: { type: ['string', 'null'] },
       delegated_file_name: { type: ['string', 'null'] },
-    }, ['file_id', 'max_bytes', 'delegated_download_url', 'delegated_file_name']),
+      ...connectorHandoffFields,
+    }, ['file_id', 'max_bytes', 'delegated_download_url', 'delegated_file_name', ...connectorHandoffRequired]),
   },
   {
     type: 'function', name: 'box_create_folder', strict: true,
@@ -125,7 +145,44 @@ function boxToken(context: BridgeRequestContext): string | undefined {
   return context.boxAccessToken || process.env.BOX_ACCESS_TOKEN;
 }
 
-async function capabilityResult(args: Record<string, any>) {
+function isTextContent(contentType: string, fileName: string): boolean {
+  return /^text\//.test(contentType) || /\.(md|txt|csv|tsv|json|xml|html|js|ts|py|sh)$/i.test(fileName);
+}
+
+function connectorHandoffResult(args: Record<string, any>) {
+  if (!args.connector_content_base64) return null;
+  const expected = String(args.connector_sha256 || '').toLowerCase();
+  if (!SHA256.test(expected)) throw new BoxApiError('Approved connector handoff requires a valid SHA-256', 400);
+  if (!args.connector_file_name || !args.connector_content_type || !args.connector_source) {
+    throw new BoxApiError('Approved connector handoff metadata is incomplete', 400);
+  }
+  const normalized = String(args.connector_content_base64).replace(/\s+/g, '');
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized) || normalized.length % 4 !== 0) {
+    throw new BoxApiError('Approved connector handoff is not valid base64', 400);
+  }
+  const bytes = Buffer.from(normalized, 'base64');
+  if (!bytes.length || bytes.length > CONNECTOR_HANDOFF_MAX_BYTES) {
+    throw new BoxApiError(`Approved connector handoff must be 1-${CONNECTOR_HANDOFF_MAX_BYTES} bytes`, 413);
+  }
+  const actual = createHash('sha256').update(bytes).digest('hex');
+  if (actual !== expected) throw new BoxApiError('Approved connector handoff SHA-256 mismatch', 412);
+  const fileName = String(args.connector_file_name);
+  const contentType = String(args.connector_content_type);
+  return {
+    file_name: fileName,
+    content_type: contentType,
+    size: bytes.length,
+    sha256: actual,
+    base64: bytes.toString('base64'),
+    text: isTextContent(contentType, fileName) ? bytes.toString('utf8') : undefined,
+    connector_handoff: true,
+    connector_source: String(args.connector_source),
+  };
+}
+
+async function delegatedResult(args: Record<string, any>) {
+  const connector = connectorHandoffResult(args);
+  if (connector) return connector;
   if (!args.delegated_download_url) return null;
   const result = await BoxClient.downloadCapability(
     args.delegated_download_url,
@@ -138,9 +195,7 @@ async function capabilityResult(args: Record<string, any>) {
     size: result.bytes.length,
     sha256: result.sha256,
     base64: result.bytes.toString('base64'),
-    text: /^text\//.test(result.contentType) || /\.(md|txt|csv|tsv|json|xml|html|js|ts|py|sh)$/i.test(result.fileName)
-      ? result.bytes.toString('utf8')
-      : undefined,
+    text: isTextContent(result.contentType, result.fileName) ? result.bytes.toString('utf8') : undefined,
     delegated_capability: true,
   };
 }
@@ -159,7 +214,7 @@ export async function executeTool(name: string, args: Record<string, any>, conte
     switch (name) {
       case 'box_search': result = await new BoxClient(boxToken(context)).search(args as any); break;
       case 'box_get': {
-        const delegated = await capabilityResult(args);
+        const delegated = await delegatedResult(args);
         if (delegated) result = { item_id: args.item_id, content: delegated };
         else {
           const client = new BoxClient(boxToken(context));
@@ -171,7 +226,7 @@ export async function executeTool(name: string, args: Record<string, any>, conte
                 size: download.bytes.length,
                 sha256: download.sha256,
                 base64: download.bytes.toString('base64'),
-                text: /^text\//.test(download.contentType) ? download.bytes.toString('utf8') : undefined,
+                text: isTextContent(download.contentType, download.fileName) ? download.bytes.toString('utf8') : undefined,
               }))
             : undefined;
           result = { metadata, content };
@@ -179,7 +234,7 @@ export async function executeTool(name: string, args: Record<string, any>, conte
         break;
       }
       case 'box_download': {
-        const delegated = await capabilityResult(args);
+        const delegated = await delegatedResult(args);
         if (delegated) result = delegated;
         else {
           const download = await new BoxClient(boxToken(context)).downloadRaw(args.file_id, args.max_bytes || 20 * 1024 * 1024);

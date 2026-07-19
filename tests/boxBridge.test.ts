@@ -1,7 +1,8 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { columnNumber, parseDelimited, stringifyDelimited, updateXlsx } from '../src/bridge/boxSpreadsheet.js';
-import { TOOL_DEFINITIONS } from '../src/bridge/toolBridge.js';
+import { executeTool, TOOL_DEFINITIONS } from '../src/bridge/toolBridge.js';
 
 describe('Box bridge contract', () => {
   it('exposes the requested active tools', () => {
@@ -11,6 +12,47 @@ describe('Box bridge contract', () => {
       'box_rename', 'box_move', 'box_upload', 'box_spreadsheet_update', 'audit_log',
       'knowledge_retrieve', 'action_record',
     ]) expect(names.has(name)).toBe(true);
+  });
+
+  it('accepts a SHA-bound approved connector file handoff', async () => {
+    const content = Buffer.from('approved Box connector file result\n', 'utf8');
+    const sha256 = createHash('sha256').update(content).digest('hex');
+    const result = await executeTool('box_get', {
+      item_id: '123456789',
+      item_type: 'file',
+      include_content: true,
+      max_bytes: 1024 * 1024,
+      delegated_download_url: null,
+      delegated_file_name: null,
+      connector_content_base64: content.toString('base64'),
+      connector_file_name: 'fixture.txt',
+      connector_content_type: 'text/plain',
+      connector_sha256: sha256,
+      connector_source: 'box-approved-api',
+    }, { actor: 'test', source: 'vitest' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const payload = result.result as any;
+    expect(payload.content.text).toBe(content.toString('utf8'));
+    expect(payload.content.sha256).toBe(sha256);
+    expect(payload.content.connector_handoff).toBe(true);
+  });
+
+  it('blocks a connector handoff whose content does not match its claimed SHA', async () => {
+    const result = await executeTool('box_download', {
+      file_id: '123456789',
+      max_bytes: 1024 * 1024,
+      delegated_download_url: null,
+      delegated_file_name: null,
+      connector_content_base64: Buffer.from('tampered', 'utf8').toString('base64'),
+      connector_file_name: 'fixture.txt',
+      connector_content_type: 'text/plain',
+      connector_sha256: '0'.repeat(64),
+      connector_source: 'box-approved-api',
+    }, { actor: 'test', source: 'vitest' });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.status).toBe(412);
   });
 
   it('parses and rewrites quoted CSV safely', () => {

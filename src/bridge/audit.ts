@@ -18,7 +18,7 @@ export interface AuditEvent {
   completedAt?: string;
 }
 
-const SECRET_KEY = /token|secret|password|authorization|private[_-]?key|download[_-]?url|content[_-]?base64/i;
+const SECRET_KEY = /token|secret|password|authorization|private[_-]?key|download[_-]?url|content[_-]?base64|capability/i;
 const CONTENT_KEY = /(^|_)(content|body|text|bytes|data)$/i;
 
 function digest(value: unknown): string {
@@ -55,6 +55,17 @@ export class AuditLedger {
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
     this.supabase = url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
     this.notion = process.env.NOTION_TOKEN ? new NotionClient({ auth: process.env.NOTION_TOKEN }) : null;
+  }
+
+  async consumeCapability(nonce: string, allowedTool: string, expectedSha256: string): Promise<boolean> {
+    if (!this.supabase || !nonce || !/^[0-9a-f]{64}$/i.test(expectedSha256)) return false;
+    const nonceHash = createHash('sha256').update(nonce).digest('hex');
+    const { data, error } = await this.supabase.rpc('consume_apex_tool_gateway_capability', {
+      p_nonce_hash: nonceHash,
+      p_allowed_tool: allowedTool,
+      p_expected_sha256: expectedSha256.toLowerCase(),
+    });
+    return !error && data === true;
   }
 
   async record(event: AuditEvent): Promise<{ request_id: string; supabase: string; notion: string }> {
