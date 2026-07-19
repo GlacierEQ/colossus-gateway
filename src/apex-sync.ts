@@ -6,7 +6,7 @@
  *   - Supabase health_logs table
  */
 
-import { runDailyEngine } from './apex-daily-engine';
+import { runDailyEngine } from './apex-daily-engine.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -23,7 +23,7 @@ async function syncToNotion(report: any): Promise<void> {
       : '🟢 All systems nominal',
   ].join('\n');
 
-  await fetch(`https://api.notion.com/v1/comments`, {
+  await fetch('https://api.notion.com/v1/comments', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${notionToken}`,
@@ -61,23 +61,14 @@ async function syncToSupabase(report: any): Promise<void> {
 }
 
 export async function runFullSync(): Promise<void> {
-  // 1. Run health engine
   await runDailyEngine();
-
-  // 2. Load generated report
   const reportPath = path.join(process.cwd(), 'reports', 'health_report_latest.json');
   if (!fs.existsSync(reportPath)) {
     console.error('No health report found — engine may have failed');
     return;
   }
   const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-
-  // 3. Sync to platforms in parallel
-  await Promise.allSettled([
-    syncToNotion(report),
-    syncToSupabase(report),
-  ]);
-
+  await Promise.allSettled([syncToNotion(report), syncToSupabase(report)]);
   console.log('\n🔄 APEX SYNC complete — Notion + Supabase updated');
 }
 
