@@ -4,6 +4,13 @@ import { getBridgeContext } from '../bridge/context.js';
 import { executeTool } from '../bridge/toolBridge.js';
 
 const nullableString = z.string().nullable().optional();
+const connectorHandoff = {
+  connector_content_base64: nullableString,
+  connector_file_name: nullableString,
+  connector_content_type: nullableString,
+  connector_sha256: nullableString,
+  connector_source: nullableString,
+};
 const response = async (name: string, args: Record<string, unknown>) => {
   const result = await executeTool(name, args, { ...getBridgeContext(), source: 'mcp' });
   return {
@@ -21,20 +28,22 @@ export function registerBoxBridgeTools(server: McpServer) {
     file_extensions: z.array(z.string()).nullable().optional(),
   }, (args) => response('box_search', args));
 
-  server.tool('box_get', 'Get Box metadata and optionally content.', {
+  server.tool('box_get', 'Get Box metadata and optionally content through direct Box access, a delegated Box URL, or an approved connector handoff.', {
     item_id: z.string().min(1),
     item_type: z.enum(['file', 'folder']).nullable().optional(),
     include_content: z.boolean().default(false),
     max_bytes: z.number().int().min(1).max(20 * 1024 * 1024).nullable().optional(),
     delegated_download_url: nullableString,
     delegated_file_name: nullableString,
+    ...connectorHandoff,
   }, (args) => response('box_get', args));
 
-  server.tool('box_download', 'Download a Box file as bounded base64 with SHA-256.', {
+  server.tool('box_download', 'Download a Box file as bounded base64 with SHA-256 through direct Box access, a delegated Box URL, or an approved connector handoff.', {
     file_id: z.string().min(1),
     max_bytes: z.number().int().min(1).max(20 * 1024 * 1024).nullable().optional(),
     delegated_download_url: nullableString,
     delegated_file_name: nullableString,
+    ...connectorHandoff,
   }, (args) => response('box_download', args));
 
   server.tool('box_create_folder', 'Create a Box folder.', {
