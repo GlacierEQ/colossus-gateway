@@ -18,6 +18,8 @@ export interface AuditEvent {
   completedAt?: string;
 }
 
+const CAPABILITY_SUPABASE_URL = process.env.APEX_CAPABILITY_SUPABASE_URL || 'https://dyhprklicgewmrimecey.supabase.co';
+const CAPABILITY_SUPABASE_PUBLISHABLE_KEY = process.env.APEX_CAPABILITY_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aHBya2xpY2dld21yaW1lY2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI5NTkxMjUsImV4cCI6MjA2ODUzNTEyNX0.KSddhx8HBzWFM73hdM-p_IChuI8bdb5UitmehQYXRtI';
 const SECRET_KEY = /token|secret|password|authorization|private[_-]?key|download[_-]?url|content[_-]?base64|capability/i;
 const CONTENT_KEY = /(^|_)(content|body|text|bytes|data)$/i;
 
@@ -48,19 +50,25 @@ function sanitize(value: unknown, key = ''): unknown {
 
 export class AuditLedger {
   private readonly supabase: SupabaseClient | null;
+  private readonly capabilitySupabase: SupabaseClient;
   private readonly notion: NotionClient | null;
 
   constructor() {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
     this.supabase = url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
+    this.capabilitySupabase = createClient(
+      CAPABILITY_SUPABASE_URL,
+      CAPABILITY_SUPABASE_PUBLISHABLE_KEY,
+      { auth: { persistSession: false } },
+    );
     this.notion = process.env.NOTION_TOKEN ? new NotionClient({ auth: process.env.NOTION_TOKEN }) : null;
   }
 
   async consumeCapability(nonce: string, allowedTool: string, expectedSha256: string): Promise<boolean> {
-    if (!this.supabase || !nonce || !/^[0-9a-f]{64}$/i.test(expectedSha256)) return false;
+    if (!nonce || !/^[0-9a-f]{64}$/i.test(expectedSha256)) return false;
     const nonceHash = createHash('sha256').update(nonce).digest('hex');
-    const { data, error } = await this.supabase.rpc('consume_apex_tool_gateway_capability', {
+    const { data, error } = await this.capabilitySupabase.rpc('consume_apex_tool_gateway_capability', {
       p_nonce_hash: nonceHash,
       p_allowed_tool: allowedTool,
       p_expected_sha256: expectedSha256.toLowerCase(),
@@ -68,10 +76,32 @@ export class AuditLedger {
     return !error && data === true;
   }
 
+  private async recordPublishable(metadata: Record<string, unknown>): Promise<string> {
+    const event = {
+      request_id: metadata.request_id,
+      action: metadata.action,
+      status: metadata.status,
+      actor: metadata.actor,
+      source: metadata.source,
+      target: metadata.target,
+      arguments_sha256: metadata.arguments_sha256,
+      result_sha256: metadata.result_sha256,
+      error: typeof metadata.error === 'string' ? metadata.error : undefined,
+      metadata: {
+        schema_version: metadata.schema_version,
+        started_at: metadata.started_at,
+        completed_at: metadata.completed_at,
+      },
+    };
+    const { data, error } = await this.capabilitySupabase.rpc('record_apex_tool_gateway_event', { p_event: event });
+    if (error) return `failed:${error.message}`;
+    return data?.recorded === true ? 'recorded_publishable_rpc' : 'failed:unexpected response';
+  }
+
   async record(event: AuditEvent): Promise<{ request_id: string; supabase: string; notion: string }> {
     const requestId = event.requestId || randomUUID();
     const timestamp = event.completedAt || new Date().toISOString();
-    const metadata = {
+    const metadata: Record<string, unknown> = {
       schema_version: '1.0',
       request_id: requestId,
       action: event.action,
@@ -111,6 +141,9 @@ export class AuditLedger {
       } else {
         supabaseState = error ? `failed:${error.message}` : 'recorded';
       }
+    }
+    if (supabaseState === 'not_configured' || supabaseState.startsWith('failed:')) {
+      supabaseState = await this.recordPublishable(metadata);
     }
 
     let notionState = 'not_configured';
