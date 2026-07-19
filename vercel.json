@@ -9,6 +9,10 @@
   "routes": [
     { "src": "/health", "dest": "/api/health.ts" },
     { "src": "/mcp", "dest": "/api/mcp.ts" },
+    { "src": "/functions", "dest": "/api/functions.ts" },
+    { "src": "/call", "dest": "/api/call.ts" },
+    { "src": "/download", "dest": "/api/download.ts" },
+    { "src": "/box/status", "dest": "/api/box-status.ts" },
     { "src": "/api/memory/add", "dest": "/api/memory/add.ts" },
     { "src": "/api/memory/search", "dest": "/api/memory/search.ts" },
     { "src": "/api/memory/delete", "dest": "/api/memory/delete.ts" },

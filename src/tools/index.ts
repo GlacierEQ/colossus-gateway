@@ -26,6 +26,7 @@ import { registerMyceliumTools } from "../mycelium/index.js";
 import { registerShadowCompanion } from "../mycelium/shadowCompanion.js";
 import { registerGitHubTools } from "./github.js";
 import { registerOllamaTools } from "./ollama.js";
+import { registerBoxBridgeTools } from "./boxBridge.js";
 
 export function registerTools(server: McpServer) {
   registerUniversalExecute(server);
@@ -56,4 +57,5 @@ export function registerTools(server: McpServer) {
   registerShadowCompanion(server);
   registerGitHubTools(server);
   registerOllamaTools(server);
+  registerBoxBridgeTools(server);
 }
