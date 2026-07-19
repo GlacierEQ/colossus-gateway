@@ -2,6 +2,8 @@ import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { executeTool } from '../src/bridge/toolBridge.js';
 
+const DELEGATED_MAX_BYTES = 1024 * 1024;
+
 function header(req: IncomingMessage, name: string): string | undefined {
   const value = req.headers[name.toLowerCase()];
   return Array.isArray(value) ? value[0] : value;
@@ -23,8 +25,8 @@ function delegatedCapabilityRead(input: any): boolean {
   try {
     const url = new URL(capability);
     const boxHost = /(^|\.)boxcloud\.com$/.test(url.hostname) || /(^|\.)box\.com$/.test(url.hostname);
-    const maxBytes = Number(input.arguments.max_bytes || 1024 * 1024);
-    return url.protocol === 'https:' && boxHost && maxBytes > 0 && maxBytes <= 1024 * 1024;
+    const maxBytes = Number(input.arguments.max_bytes ?? DELEGATED_MAX_BYTES);
+    return url.protocol === 'https:' && boxHost && Number.isFinite(maxBytes) && maxBytes > 0 && maxBytes <= DELEGATED_MAX_BYTES;
   } catch {
     return false;
   }
@@ -70,6 +72,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       res.writeHead(401, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: 'unauthorized' }));
       return;
+    }
+    if (delegatedRead) {
+      const requested = Number(input.arguments.max_bytes ?? DELEGATED_MAX_BYTES);
+      input.arguments.max_bytes = Math.min(requested, DELEGATED_MAX_BYTES);
     }
 
     const result = await executeTool(input.name, input.arguments, {
