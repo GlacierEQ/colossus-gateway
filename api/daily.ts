@@ -4,11 +4,10 @@
  * Configure in vercel.json: { "crons": [{ "path": "/api/daily", "schedule": "0 14 * * *" }] }
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { runFullSync } from '../src/apex-sync';
+import type { VercelRequest, VercelResponse } from '../src/types/vercel.js';
+import { runFullSync } from '../src/apex-sync.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Secure the endpoint
   const authHeader = req.headers.authorization;
   const expected = `Bearer ${process.env.CRON_SECRET ?? ''}`;
   if (process.env.CRON_SECRET && authHeader !== expected) {
