@@ -1,7 +1,8 @@
 import { Octokit } from "octokit";
 import { Client as NotionClient } from "@notionhq/client";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import axios from "axios";
+import { mem0Add, mem0Search } from "./mem0.js";
+import { GATEWAY_VERSION } from "../constants.js";
 
 export interface RemoteExecutionResult {
   success: boolean;
@@ -157,20 +158,15 @@ export class RemoteExecutor {
           }
 
         case "mem0.add":
-          if (!process.env.MEM0_API_KEY) throw new Error("MEM0_API_KEY not configured");
-          const memAdd = await axios.post("https://api.mem0.ai/v1/memories/", args, {
-            headers: { Authorization: `Token ${process.env.MEM0_API_KEY}` }
-          });
-          await this.logEvent("MEMORY", "Added memory chunk", args);
-          return { success: true, data: memAdd.data };
+          const memAdd = await mem0Add(args);
+          await this.logEvent("MEMORY", "Added memory chunk", { user_id: args.user_id, agent_id: args.agent_id });
+          return { success: true, data: memAdd };
 
         case "mem0.search":
-          if (!process.env.MEM0_API_KEY) throw new Error("MEM0_API_KEY not configured");
-          const memSearch = await axios.post("https://api.mem0.ai/v1/memories/search/", args, {
-            headers: { Authorization: `Token ${process.env.MEM0_API_KEY}` }
-          });
-          await this.logEvent("MEMORY", `Memory search: ${args.query}`, { results: memSearch.data.length });
-          return { success: true, data: memSearch.data };
+          const memSearch = await mem0Search(args);
+          const resultCount = Array.isArray(memSearch) ? memSearch.length : Array.isArray(memSearch?.results) ? memSearch.results.length : 0;
+          await this.logEvent("MEMORY", `Memory search: ${args.query}`, { results: resultCount });
+          return { success: true, data: memSearch };
 
         // --- OPERATIONS ---
         case "gemini.heartbeat":
@@ -454,7 +450,7 @@ export class RemoteExecutor {
             orchestration: ["plethora.deploy", "plethora.create_motion_chain"]
           };
           await this.logEvent("OPERATIONS", "Gateway Discovery Executed", { catalog_depth: Object.keys(catalog).length });
-          return { success: true, data: { system: "Colossus Gateway v2.1", protocol: "GlacierEQ v3.1", capabilities: catalog } };
+          return { success: true, data: { system: `Colossus Gateway ${GATEWAY_VERSION}`, protocol: "GlacierEQ v3.1", capabilities: catalog } };
 
         // --- INFINITY STONES & DAEMONS ---
         case "infinity.daemon_strike":
