@@ -9,13 +9,15 @@ export interface Mem0Input {
 
 const BASE_URL = process.env.MEM0_BASE_URL ?? "https://api.mem0.ai";
 
-async function request(path: string, method: "POST", body: Mem0Input) {
+type Mem0Method = "POST" | "DELETE";
+
+async function request(path: string, method: Mem0Method, body?: Mem0Input) {
   const key = process.env.MEM0_API_KEY;
   if (!key) throw new Error("MEM0_API_KEY not configured");
   const response = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-    body: JSON.stringify(body),
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`Mem0 ${response.status}: ${JSON.stringify(data).slice(0, 400)}`);
@@ -33,4 +35,9 @@ export function mem0Search(input: Mem0Input) {
     ...input,
     limit: Math.min(Math.max(input.limit ?? 5, 1), 10),
   });
+}
+
+export function mem0Delete(memoryId: string) {
+  if (!memoryId?.trim()) throw new Error("Mem0 delete requires memoryId");
+  return request(`/v1/memories/${encodeURIComponent(memoryId)}/`, "DELETE");
 }

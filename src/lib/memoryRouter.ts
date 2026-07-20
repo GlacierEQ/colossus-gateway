@@ -1,5 +1,5 @@
-import { mem0Add, mem0Search, type Mem0Input } from "./mem0.js";
-import { memoryAdd as supermemoryAdd, memorySearch as supermemorySearch, type AddReq, type SearchReq } from "./supermemory.js";
+import { mem0Add, mem0Delete, mem0Search, type Mem0Input } from "./mem0.js";
+import { memoryAdd as supermemoryAdd, memoryDelete as supermemoryDelete, memorySearch as supermemorySearch, type AddReq, type SearchReq } from "./supermemory.js";
 
 export type MemoryProvider = "auto" | "mem0" | "supermemory" | "both";
 
@@ -46,6 +46,13 @@ export async function searchMemory(provider: MemoryProvider, input: SearchReq & 
 
   const [mem0, supermemory] = await Promise.all([mem0Search(mem0Input), supermemorySearch(input)]);
   return { provider: "both", results: { mem0: compactMem0(mem0), supermemory: compactSupermemory(supermemory) } };
+}
+
+export async function deleteMemory(provider: Exclude<MemoryProvider, "auto">, id: string) {
+  if (provider === "mem0") return { provider, result: await mem0Delete(id) };
+  if (provider === "supermemory") return { provider, result: await supermemoryDelete({ id }) };
+  const [mem0, supermemory] = await Promise.all([mem0Delete(id), supermemoryDelete({ id })]);
+  return { provider: "both", result: { mem0, supermemory } };
 }
 
 export async function addMemory(provider: Exclude<MemoryProvider, "auto">, input: AddReq & { user_id?: string; agent_id?: string }) {

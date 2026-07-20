@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { addMemory, searchMemory } from "../lib/memoryRouter.js";
+import { addMemory, deleteMemory, searchMemory } from "../lib/memoryRouter.js";
 
 const scalar = z.union([z.string(), z.number(), z.boolean()]);
 const metadata = z.record(z.string(), scalar).optional();
@@ -36,6 +36,18 @@ export function registerMemoryTools(server: McpServer) {
     },
     async ({ provider, content, containerTag, customId, userId, agentId, metadata: meta }) => ({
       content: [{ type: "text", text: JSON.stringify(await addMemory(provider, { content, containerTag, customId, user_id: userId, agent_id: agentId, metadata: meta })) }],
+    }),
+  );
+
+  server.tool(
+    "memory.delete",
+    "Delete one explicitly identified memory document or Mem0 memory. This is irreversible.",
+    {
+      provider: z.enum(["mem0", "supermemory", "both"]).default("supermemory"),
+      id: z.string().min(1),
+    },
+    async ({ provider, id }) => ({
+      content: [{ type: "text", text: JSON.stringify(await deleteMemory(provider, id)) }],
     }),
   );
 }
