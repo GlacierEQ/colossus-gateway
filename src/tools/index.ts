@@ -26,8 +26,8 @@ import { registerMyceliumTools } from "../mycelium/index.js";
 import { registerShadowCompanion } from "../mycelium/shadowCompanion.js";
 import { registerGitHubTools } from "./github.js";
 import { registerOllamaTools } from "./ollama.js";
-import { registerMemoryTools } from "./memory-tools.js";
-import { registerComposioTools } from "./composio-tools.js";
+import { registerMemoryTools } from "./memory.js";
+import { registerComposioTools } from "./composio.js";
 
 export function registerTools(server: McpServer) {
   registerUniversalExecute(server);
