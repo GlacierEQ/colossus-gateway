@@ -11,6 +11,7 @@
     { "src": "/mcp", "dest": "/api/mcp.ts" },
     { "src": "/functions", "dest": "/api/functions.ts" },
     { "src": "/call", "dest": "/api/call.ts" },
+    { "src": "/notion/call", "dest": "/api/notion-call.ts" },
     { "src": "/download", "dest": "/api/download.ts" },
     { "src": "/notion-handoff", "dest": "/api/notion-handoff.ts" },
     { "src": "/box/status", "dest": "/api/box-status.ts" },
