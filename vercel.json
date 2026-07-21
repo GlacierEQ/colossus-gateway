@@ -7,7 +7,7 @@
     }
   ],
   "routes": [
-    { "src": "/health", "dest": "/api/health.ts" },
+    { "src": "/health", "dest": "/api/mcp.ts" },
     { "src": "/mcp", "dest": "/api/mcp.ts" },
     { "src": "/functions", "dest": "/api/functions.ts" },
     { "src": "/call", "dest": "/api/call.ts" },
