@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 export interface BridgeRequestContext {
   boxAccessToken?: string;
+  notionAccessToken?: string;
   actor?: string;
   requestId?: string;
   source?: string;
