@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { TOOL_DEFINITIONS } from '../src/bridge/toolBridge.js';
+import { NOTION_SEARCH_DEFINITION } from '../src/tools/notionDirect.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'GET') {
@@ -12,5 +13,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     'cache-control': 'public, max-age=300',
     'access-control-allow-origin': '*',
   });
-  res.end(JSON.stringify({ gateway: 'colossus-gateway', transport: 'https-function-calling', tools: TOOL_DEFINITIONS }, null, 2));
+  res.end(JSON.stringify({
+    gateway: 'colossus-gateway',
+    transport: 'https-function-calling',
+    tools: [...TOOL_DEFINITIONS, NOTION_SEARCH_DEFINITION],
+  }, null, 2));
 }
