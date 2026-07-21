@@ -178,9 +178,10 @@ export class AuditLedger {
     return { request_id: requestId, supabase: supabaseState, notion: notionState };
   }
 
-  async retrieveNotion(query: string, limit = 10): Promise<unknown[]> {
-    if (!this.notion) return [];
-    const response = await this.notion.search({
+  async retrieveNotion(query: string, limit = 10, accessToken?: string): Promise<unknown[]> {
+    const client = accessToken ? new NotionClient({ auth: accessToken }) : this.notion;
+    if (!client) return [];
+    const response = await client.search({
       query,
       page_size: Math.min(Math.max(limit, 1), 100),
       sort: { direction: 'descending', timestamp: 'last_edited_time' },
