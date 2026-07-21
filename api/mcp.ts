@@ -21,7 +21,7 @@ function authorized(req: IncomingMessage): boolean {
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method === 'GET' && (req as any).url?.includes('/health')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', gateway: 'colossus-gateway', version: '2.2.0', active_bridge: true }));
+    res.end(JSON.stringify({ status: 'ok', gateway: 'colossus-gateway', version: '2.3.0', active_bridge: true, direct_notion_header_auth: true }));
     return;
   }
 
@@ -39,6 +39,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   await server.connect(transport);
   await runBridgeContext({
     boxAccessToken: header(req, 'x-box-access-token'),
+    notionAccessToken: header(req, 'x-notion-token'),
     actor: header(req, 'x-colossus-actor') || 'mcp-client',
     requestId: header(req, 'x-request-id'),
     source: 'remote-mcp',
