@@ -179,24 +179,43 @@ export class AuditLedger {
   }
 
   async retrieveNotion(query: string, limit = 10, accessToken?: string): Promise<unknown[]> {
+    const boundedLimit = Math.min(Math.max(limit, 1), 100);
     const client = accessToken ? new NotionClient({ auth: accessToken }) : this.notion;
-    if (!client) return [];
-    const response = await client.search({
-      query,
-      page_size: Math.min(Math.max(limit, 1), 100),
-      sort: { direction: 'descending', timestamp: 'last_edited_time' },
+
+    if (client) {
+      const response = await client.search({
+        query,
+        page_size: boundedLimit,
+        sort: { direction: 'descending', timestamp: 'last_edited_time' },
+      });
+      return response.results.map((item: any) => ({
+        id: item.id,
+        object: item.object,
+        url: item.url,
+        last_edited_time: item.last_edited_time,
+        title:
+          item.title?.[0]?.plain_text ||
+          item.properties?.title?.title?.[0]?.plain_text ||
+          item.properties?.Name?.title?.[0]?.plain_text ||
+          item.properties?.name?.title?.[0]?.plain_text ||
+          'Untitled',
+      }));
+    }
+
+    const response = await fetch(`${CAPABILITY_SUPABASE_URL}/functions/v1/apex-notion-broker`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${CAPABILITY_SUPABASE_PUBLISHABLE_KEY}`,
+        apikey: CAPABILITY_SUPABASE_PUBLISHABLE_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ action: 'search', query, limit: boundedLimit }),
     });
-    return response.results.map((item: any) => ({
-      id: item.id,
-      object: item.object,
-      url: item.url,
-      last_edited_time: item.last_edited_time,
-      title:
-        item.properties?.title?.title?.[0]?.plain_text ||
-        item.properties?.Name?.title?.[0]?.plain_text ||
-        item.properties?.name?.title?.[0]?.plain_text ||
-        'Untitled',
-    }));
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.message || payload?.error || `notion_broker_http_${response.status}`);
+    }
+    return Array.isArray(payload?.results) ? payload.results : [];
   }
 }
 
