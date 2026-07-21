@@ -27,6 +27,7 @@ import { registerShadowCompanion } from "../mycelium/shadowCompanion.js";
 import { registerGitHubTools } from "./github.js";
 import { registerOllamaTools } from "./ollama.js";
 import { registerBoxBridgeTools } from "./boxBridge.js";
+import { registerNotionDirectTools } from "./notionDirect.js";
 
 export function registerTools(server: McpServer) {
   registerUniversalExecute(server);
@@ -58,4 +59,5 @@ export function registerTools(server: McpServer) {
   registerGitHubTools(server);
   registerOllamaTools(server);
   registerBoxBridgeTools(server);
+  registerNotionDirectTools(server);
 }
