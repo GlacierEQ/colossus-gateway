@@ -1,19 +1,23 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { remoteExecutor } from "../lib/remoteExecutor.js";
-import { isRemoteToolAllowed } from "../lib/toolPolicy.js";
+import { isReadOnlyTool, isRemoteToolAllowed } from "../lib/toolPolicy.js";
 
 export function registerUniversalExecute(server: McpServer) {
   server.tool(
     "universal.execute",
-    "Execute an allowlisted gateway action. Add COLOSSUS_ALLOWED_REMOTE_TOOLS for additional actions.",
+    "Execute an explicitly allowlisted gateway action. Non-read actions require confirm=true.",
     {
       toolName: z.string().min(1),
       payload: z.any().optional(),
+      confirm: z.boolean().default(false),
     },
-    async ({ toolName, payload }) => {
+    async ({ toolName, payload, confirm }) => {
       if (!isRemoteToolAllowed(toolName)) {
         return { isError: true, content: [{ type: "text", text: `❌ Tool is not allowlisted: ${toolName}` }] };
+      }
+      if (!isReadOnlyTool(toolName) && !confirm) {
+        return { isError: true, content: [{ type: "text", text: `⚠️ Confirmation required for non-read action: ${toolName}` }] };
       }
       const result = await remoteExecutor.execute(toolName, payload);
       if (!result.success) return { isError: true, content: [{ type: "text", text: `❌ Remote execution failed: ${result.error}` }] };
