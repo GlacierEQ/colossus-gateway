@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 export interface OperatorAuthResult {
   authorized: boolean;
@@ -27,9 +27,9 @@ function normalized(value: string): string {
 }
 
 function equalsSecret(left: string, right: string): boolean {
-  const a = Buffer.from(left);
-  const b = Buffer.from(right);
-  return a.length === b.length && timingSafeEqual(a, b);
+  const a = createHash("sha256").update(left).digest();
+  const b = createHash("sha256").update(right).digest();
+  return timingSafeEqual(a, b);
 }
 
 export function parseOperatorCode(raw: string): { valid: boolean; operatorId: string; guid: string } {
@@ -43,7 +43,6 @@ export function parseOperatorCode(raw: string): { valid: boolean; operatorId: st
   return { valid: false, operatorId: "", guid: "" };
 }
 
-/** Validate only against deployment-provided secrets; no source-code fallback exists. */
 export function validateOperatorCode(inboundCode: string): OperatorAuthResult {
   const timestamp = new Date().toISOString();
   const inbound = normalized(inboundCode);
@@ -76,13 +75,7 @@ export function validateOperatorCode(inboundCode: string): OperatorAuthResult {
     });
   }
 
-  return {
-    authorized: true,
-    operatorId,
-    tier: "APEX_OPERATOR",
-    message: "OPERATOR_AUTHORIZED",
-    timestamp,
-  };
+  return { authorized: true, operatorId, tier: "APEX_OPERATOR", message: "OPERATOR_AUTHORIZED", timestamp };
 }
 
 export function extractOperatorCode(headers: RequestHeaders): string | null {

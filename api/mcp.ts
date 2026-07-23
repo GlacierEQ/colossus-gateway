@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { server } from "../src/server.js";
 import { authorizeRequest } from "../src/lib/operatorAuth.js";
@@ -19,7 +20,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const auth = authorizeRequest(req.headers);
   if (!auth.authorized) return reject(res, auth.message);
 
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => crypto.randomUUID() });
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() });
   res.on("close", () => transport.close());
   await server.connect(transport);
   await transport.handleRequest(req, res);
