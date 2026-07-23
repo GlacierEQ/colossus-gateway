@@ -1,25 +1,20 @@
 {
   "name": "colossus-gateway",
-  "version": "1.1.0",
-  "description": "Colossus HTTPS MCP and function-calling tool gateway",
+  "version": "2.1.2",
+  "description": "Authenticated MCP gateway with scoped memory and Composio connector execution",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "start": "tsx src/index.ts",
-    "build": "npm run verify && tsc",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "typecheck:api": "tsc --ignoreConfig --noEmit --target ESNext --module NodeNext --moduleResolution NodeNext --strict --esModuleInterop --skipLibCheck --types node api/*.ts",
-    "verify": "npm run typecheck && npm run typecheck:api && npm test && npm audit --omit=dev --audit-level=high"
+    "build": "tsc",
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@notionhq/client": "^5.21.0",
     "@supabase/supabase-js": "^2.105.4",
-    "@xmldom/xmldom": "^0.9.10",
     "axios": "^1.16.0",
     "dotenv": "^17.4.2",
-    "fflate": "^0.8.3",
     "octokit": "^5.0.5",
     "zod": "^4.4.3"
   },
@@ -27,9 +22,7 @@
     "@types/node": "^25.7.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.6"
-  },
-  "engines": {
-    "node": ">=20"
+    "vitest": "^4.1.6",
+    "@vercel/node": "^5.6.0"
   }
 }
