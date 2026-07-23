@@ -26,13 +26,11 @@ import { registerMyceliumTools } from "../mycelium/index.js";
 import { registerShadowCompanion } from "../mycelium/shadowCompanion.js";
 import { registerGitHubTools } from "./github.js";
 import { registerOllamaTools } from "./ollama.js";
-import { registerMemoryTools } from "./memory.js";
-import { registerComposioTools } from "./composio.js";
+import { registerBoxBridgeTools } from "./boxBridge.js";
+import { registerNotionDirectTools } from "./notionDirect.js";
 
 export function registerTools(server: McpServer) {
   registerUniversalExecute(server);
-  registerMemoryTools(server);
-  registerComposioTools(server);
   registerPing(server);
   registerHeartbeat(server);
   registerKiloTools(server);
@@ -60,4 +58,6 @@ export function registerTools(server: McpServer) {
   registerShadowCompanion(server);
   registerGitHubTools(server);
   registerOllamaTools(server);
+  registerBoxBridgeTools(server);
+  registerNotionDirectTools(server);
 }
