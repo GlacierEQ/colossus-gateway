@@ -1,5 +1,5 @@
-import { JuggernautEngine } from './juggernaut_bridge';
-import { ColossusSovereign } from './colossus_bridge';
+import { JuggernautEngine } from './juggernaut_bridge.js';
+import { ColossusSovereign } from './colossus_bridge.js';
 
 /**
  * INFINITY STONE ORCHESTRATOR v1.0
