@@ -6,7 +6,7 @@ import { getBridgeContext, type BridgeRequestContext } from '../bridge/context.j
 export const NOTION_SEARCH_DEFINITION = {
   type: 'function' as const,
   name: 'notion_search',
-  description: 'Search the connected Notion workspace directly through a protected request token or the persistent Supabase Vault broker.',
+  description: 'Search the connected Notion workspace through an authenticated gateway request and a workload-identity-protected Vault broker.',
   strict: true as const,
   parameters: {
     type: 'object',
@@ -38,7 +38,12 @@ export async function executeNotionSearch(
   });
 
   try {
-    const results = await auditLedger.retrieveNotion(args.query, args.limit || 10, context.notionAccessToken);
+    const results = await auditLedger.retrieveNotion(
+      args.query,
+      args.limit || 10,
+      context.notionAccessToken,
+      context.vercelOidcToken,
+    );
     const audit = await auditLedger.record({
       requestId,
       action: 'notion_search',
@@ -54,11 +59,12 @@ export async function executeNotionSearch(
     return { ok: true as const, request_id: requestId, tool: 'notion_search', result: { query: args.query, result_count: results.length, results }, audit };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const status = message.includes('notion_not_connected') ? 401 : 502;
+    const blocked = message.includes('notion_not_connected') || message.includes('identity_missing') || message.includes('identity_rejected');
+    const status = blocked ? 401 : 502;
     const audit = await auditLedger.record({
       requestId,
       action: 'notion_search',
-      status: status === 401 ? 'blocked' : 'failed',
+      status: blocked ? 'blocked' : 'failed',
       actor: context.actor,
       source: context.source,
       target: { provider: 'notion', query: args.query },
@@ -74,7 +80,7 @@ export async function executeNotionSearch(
 export function registerNotionDirectTools(server: McpServer) {
   server.tool(
     'notion_search',
-    'Search the connected Notion workspace directly. Uses x-notion-token when supplied, otherwise the persistent Supabase Vault broker.',
+    'Search the connected Notion workspace. The remote gateway requires operator authentication and binds Vault access to signed Vercel workload identity.',
     {
       query: z.string().min(1),
       limit: z.number().int().min(1).max(100).default(10),
