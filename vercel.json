@@ -16,9 +16,9 @@
     { "src": "/download", "dest": "/api/download.ts" },
     { "src": "/notion-handoff", "dest": "/api/notion-handoff.ts" },
     { "src": "/box/status", "dest": "/api/box-status.ts" },
-    { "src": "/api/memory/add", "dest": "/api/memory/add.ts" },
-    { "src": "/api/memory/search", "dest": "/api/memory/search.ts" },
-    { "src": "/api/memory/delete", "dest": "/api/memory/delete.ts" },
+    { "src": "/api/memory/add", "dest": "/api/memory/[...operation].ts" },
+    { "src": "/api/memory/search", "dest": "/api/memory/[...operation].ts" },
+    { "src": "/api/memory/delete", "dest": "/api/memory/[...operation].ts" },
     { "src": "/(.*)", "dest": "/api/mcp.ts" }
   ],
   "env": {
