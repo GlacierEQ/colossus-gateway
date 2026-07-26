@@ -64,7 +64,7 @@ function relationshipTarget(files: Record<string, Uint8Array>, selector: string 
 
   const parser = new DOMParser();
   const workbook = parser.parseFromString(strFromU8(workbookBytes), 'application/xml');
-  const sheets = Array.from(workbook.getElementsByTagName('sheet'));
+  const sheets = Array.from(workbook.getElementsByTagName('sheet')) as Element[];
   const selected = typeof selector === 'number'
     ? sheets[selector - 1]
     : sheets.find((sheet) => sheet.getAttribute('name') === selector);
@@ -74,7 +74,7 @@ function relationshipTarget(files: Record<string, Uint8Array>, selector: string 
   if (!relationId) throw new BoxApiError('Worksheet relationship ID is missing', 422);
 
   const relationships = parser.parseFromString(strFromU8(relationshipsBytes), 'application/xml');
-  const relationship = Array.from(relationships.getElementsByTagName('Relationship'))
+  const relationship = (Array.from(relationships.getElementsByTagName('Relationship')) as Element[])
     .find((entry) => entry.getAttribute('Id') === relationId);
   if (!relationship) throw new BoxApiError(`Worksheet relationship not found: ${relationId}`, 422);
   const target = relationship.getAttribute('Target');
@@ -149,23 +149,23 @@ export function updateXlsx(bytes: Uint8Array, updates: CellUpdate[], defaultShee
       if (location.row < 1 || location.column < 1) throw new BoxApiError('Spreadsheet row and column are 1-based', 400);
       const address = `${columnLetters(location.column)}${location.row}`;
 
-      let row = Array.from(sheetData.getElementsByTagName('row'))
+      let row = (Array.from(sheetData.getElementsByTagName('row')) as Element[])
         .find((candidate) => Number(candidate.getAttribute('r')) === location.row);
       if (!row) {
         row = document.createElement('row');
         row.setAttribute('r', String(location.row));
-        const next = Array.from(sheetData.getElementsByTagName('row'))
+        const next = (Array.from(sheetData.getElementsByTagName('row')) as Element[])
           .find((candidate) => Number(candidate.getAttribute('r')) > location.row);
         if (next) sheetData.insertBefore(row, next);
         else sheetData.appendChild(row);
       }
 
-      let cell = Array.from(row.getElementsByTagName('c'))
+      let cell = (Array.from(row.getElementsByTagName('c')) as Element[])
         .find((candidate) => candidate.getAttribute('r') === address);
       if (!cell) {
         cell = document.createElement('c');
         cell.setAttribute('r', address);
-        const next = Array.from(row.getElementsByTagName('c')).find((candidate) => {
+        const next = (Array.from(row.getElementsByTagName('c')) as Element[]).find((candidate) => {
           const ref = candidate.getAttribute('r');
           if (!ref) return false;
           try { return columnNumber(ref).column > location.column; } catch { return false; }
