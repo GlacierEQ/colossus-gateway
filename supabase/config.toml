@@ -1,0 +1,2 @@
+[functions.apex-notion-broker]
+verify_jwt = false
