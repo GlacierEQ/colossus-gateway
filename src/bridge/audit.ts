@@ -213,8 +213,6 @@ export class AuditLedger {
     const response = await fetch(`${CAPABILITY_SUPABASE_URL}/functions/v1/apex-notion-broker`, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${CAPABILITY_SUPABASE_PUBLISHABLE_KEY}`,
-        apikey: CAPABILITY_SUPABASE_PUBLISHABLE_KEY,
         'content-type': 'application/json',
         'x-vercel-oidc-token': vercelOidcToken,
       },
