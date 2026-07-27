@@ -6,6 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "tsx src/index.ts",
+    "postinstall": "node scripts/vercel-install-gate.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:api": "tsc -p tsconfig.api.json",
     "build": "npm run typecheck:api && npm test && tsc",
