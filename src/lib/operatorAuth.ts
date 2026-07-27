@@ -10,7 +10,7 @@ export interface OperatorAuthResult {
 
 export interface OperatorSession {
   operatorId: string;
-  code: string;
+  credentialFingerprint: string;
   tier: string;
   authorizedAt: string;
   expiresAt: string | null;
@@ -26,10 +26,16 @@ function normalized(value: string): string {
   return value.replace(/\|/g, "").replace(/^OPERATOR_LINK\s+/i, "").trim();
 }
 
+function secretDigest(value: string): Buffer {
+  return createHash("sha256").update(value).digest();
+}
+
+function secretFingerprint(value: string): string {
+  return secretDigest(value).toString("hex").slice(0, 16);
+}
+
 function equalsSecret(left: string, right: string): boolean {
-  const a = createHash("sha256").update(left).digest();
-  const b = createHash("sha256").update(right).digest();
-  return timingSafeEqual(a, b);
+  return timingSafeEqual(secretDigest(left), secretDigest(right));
 }
 
 export function parseOperatorCode(raw: string): { valid: boolean; operatorId: string; guid: string } {
@@ -67,7 +73,7 @@ export function validateOperatorCode(inboundCode: string): OperatorAuthResult {
   if (parsed.valid) {
     activeSessions.set(parsed.guid.toUpperCase(), {
       operatorId,
-      code: inboundCode,
+      credentialFingerprint: secretFingerprint(inbound),
       tier: "APEX_OPERATOR",
       authorizedAt: timestamp,
       expiresAt: null,
