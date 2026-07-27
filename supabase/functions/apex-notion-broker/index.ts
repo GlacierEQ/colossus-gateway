@@ -6,7 +6,6 @@ const TEAM_SLUG = "caseys-projects-d714883e";
 const TEAM_ID = "team_H1szku6vjfHxo0rtPDSAZeee";
 const PROJECT_NAME = "colossus-gateway";
 const PROJECT_ID = "prj_fstQXOI5Kgw5omGnHE6Q1sHPndZq";
-const HARDENING_BRANCH = "hardening/chunk-1-oidc-auth-20260726";
 const ISSUER = `https://oidc.vercel.com/${TEAM_SLUG}`;
 const AUDIENCE = `https://vercel.com/${TEAM_SLUG}`;
 const JWKS = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks`));
@@ -46,19 +45,15 @@ async function verifyWorkloadIdentity(req: Request): Promise<{ environment: "pro
   const project = stringClaim(payload, "project");
   const projectId = stringClaim(payload, "project_id");
   const environment = stringClaim(payload, "environment");
-  const gitRef = stringClaim(payload, "git_ref");
   const subject = payload.sub || "";
 
   if (owner !== TEAM_SLUG || ownerId !== TEAM_ID || project !== PROJECT_NAME || projectId !== PROJECT_ID) {
     throw new Error("workload_identity_rejected");
   }
 
-  const productionSubject = `owner:${TEAM_SLUG}:project:${PROJECT_NAME}:environment:production`;
-  if (environment === "production" && subject === productionSubject) return { environment: "production" };
-
-  const previewSubject = `owner:${TEAM_SLUG}:project:${PROJECT_NAME}:environment:preview`;
-  if (environment === "preview" && subject === previewSubject && gitRef === HARDENING_BRANCH) {
-    return { environment: "preview" };
+  const expectedSubject = `owner:${TEAM_SLUG}:project:${PROJECT_NAME}:environment:${environment}`;
+  if ((environment === "production" || environment === "preview") && subject === expectedSubject) {
+    return { environment };
   }
 
   throw new Error("workload_identity_rejected");
