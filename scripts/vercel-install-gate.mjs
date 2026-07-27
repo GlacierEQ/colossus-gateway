@@ -7,6 +7,7 @@ if (process.env.VERCEL !== '1') {
 const commands = [
   ['npm', ['run', 'typecheck:api']],
   ['npm', ['test']],
+  ['npm', ['run', 'audit:prod']],
 ];
 
 for (const [command, args] of commands) {
@@ -32,6 +33,11 @@ if (!oidcToken) {
   process.exit(1);
 }
 
+const production = process.env.VERCEL_ENV === 'production';
+const brokerInput = production
+  ? { action: 'search', query: 'APEX Deployment Assets', limit: 1 }
+  : { action: 'status' };
+
 let brokerResponse;
 try {
   brokerResponse = await fetch('https://dyhprklicgewmrimecey.supabase.co/functions/v1/apex-notion-broker', {
@@ -40,7 +46,7 @@ try {
       'content-type': 'application/json',
       'x-vercel-oidc-token': oidcToken,
     },
-    body: JSON.stringify({ action: 'status' }),
+    body: JSON.stringify(brokerInput),
     signal: AbortSignal.timeout(10_000),
   });
 } catch (error) {
@@ -54,4 +60,12 @@ if (!brokerResponse.ok) {
   process.exit(1);
 }
 
-console.log(`[vercel-install-gate] API typecheck, 35 tests, and ${brokerPayload.identity_environment || 'unknown'} OIDC broker verification passed`);
+if (production && brokerPayload.direct_api !== true) {
+  console.error('[vercel-install-gate] production Notion direct API proof was not returned');
+  process.exit(1);
+}
+
+const proof = production
+  ? `production OIDC + direct Notion search (${Number(brokerPayload.result_count || 0)} result)`
+  : `preview OIDC + Vault status (connected=${Boolean(brokerPayload.connected)})`;
+console.log(`[vercel-install-gate] API typecheck, 35 tests, production dependency audit, and ${proof} passed`);
