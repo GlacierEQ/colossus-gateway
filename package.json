@@ -6,14 +6,20 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "tsx src/index.ts",
-    "build": "tsc",
-    "test": "vitest run"
+    "postinstall": "node scripts/vercel-install-gate.mjs",
+    "typecheck": "tsc --noEmit",
+    "typecheck:api": "tsc -p tsconfig.api.json",
+    "build": "npm run typecheck:api && npm test && tsc",
+    "test": "vitest run",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "check:config": "node scripts/check-config.mjs",
+    "verify": "npm run typecheck && npm run typecheck:api && npm test && npm run audit:prod"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@notionhq/client": "^5.21.0",
     "@supabase/supabase-js": "^2.105.4",
-    "axios": "^1.16.0",
+    "axios": "^1.18.1",
     "dotenv": "^17.4.2",
     "fflate": "^0.8.2",
     "@xmldom/xmldom": "^0.8.11",
@@ -29,5 +35,15 @@
     "vitest": "^4.1.6",
     "@vercel/node": "^5.6.0",
     "@types/express": "^5.0.3"
+  },
+  "overrides": {
+    "body-parser": "2.3.0",
+    "fast-uri": "3.1.4",
+    "form-data": "4.0.6",
+    "hono": "4.12.32",
+    "qs": "6.15.3"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

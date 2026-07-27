@@ -11,9 +11,19 @@ function header(req: IncomingMessage, name: string): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function securityHeaders(contentType = "application/json") {
+  return {
+    "Content-Type": contentType,
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  };
+}
+
 function reject(res: ServerResponse, message: string) {
   res.writeHead(401, {
-    "Content-Type": "application/json",
+    ...securityHeaders(),
     "WWW-Authenticate": "Bearer",
   });
   res.end(JSON.stringify({ ok: false, error: message }));
@@ -21,13 +31,13 @@ function reject(res: ServerResponse, message: string) {
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method === "GET" && (req.url ?? "").includes("/health")) {
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, securityHeaders());
     res.end(JSON.stringify({
       status: "ok",
       gateway: "colossus-gateway",
       version: GATEWAY_VERSION,
       active_bridge: true,
-      direct_notion_header_auth: true,
+      workload_identity_available: Boolean(header(req, "x-vercel-oidc-token")),
     }));
     return;
   }
@@ -47,7 +57,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   await runBridgeContext({
     boxAccessToken: header(req, "x-box-access-token"),
     notionAccessToken: header(req, "x-notion-token"),
-    actor: header(req, "x-colossus-actor") || "mcp-client",
+    vercelOidcToken: header(req, "x-vercel-oidc-token"),
+    actor: auth.operatorId || "mcp-operator",
     requestId: header(req, "x-request-id"),
     source: "remote-mcp",
   }, () => transport.handleRequest(req, res));

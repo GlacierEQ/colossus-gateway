@@ -19,9 +19,10 @@ export interface AuditEvent {
 }
 
 const CAPABILITY_SUPABASE_URL = process.env.APEX_CAPABILITY_SUPABASE_URL || 'https://dyhprklicgewmrimecey.supabase.co';
-const CAPABILITY_SUPABASE_PUBLISHABLE_KEY = process.env.APEX_CAPABILITY_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aHBya2xpY2dld21yaW1lY2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI5NTkxMjUsImV4cCI6MjA2ODUzNTEyNX0.KSddhx8HBzWFM73hdM-p_IChuI8bdb5UitmehQYXRtI';
-const SECRET_KEY = /token|secret|password|authorization|private[_-]?key|download[_-]?url|content[_-]?base64|capability/i;
+const CAPABILITY_SUPABASE_PUBLISHABLE_KEY = process.env.APEX_CAPABILITY_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6ImR5aHBya2xpY2dld21yaW1lY2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI5NTkxMjUsImV4cCI6MjA2ODUzNTEyNX0.KSddhx8HBzWFM73hdM-p_IChuI8bdb5UitmehQYXRtI';
+const SECRET_KEY = /token|secret|password|authorization|private[_-]?key|download[_-]?url|content[_-]?base64|capability|oidc/i;
 const CONTENT_KEY = /(^|_)(content|body|text|bytes|data)$/i;
+const BROKER_TIMEOUT_MS = 10_000;
 
 function digest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
@@ -178,7 +179,12 @@ export class AuditLedger {
     return { request_id: requestId, supabase: supabaseState, notion: notionState };
   }
 
-  async retrieveNotion(query: string, limit = 10, accessToken?: string): Promise<unknown[]> {
+  async retrieveNotion(
+    query: string,
+    limit = 10,
+    accessToken?: string,
+    vercelOidcToken?: string,
+  ): Promise<unknown[]> {
     const boundedLimit = Math.min(Math.max(limit, 1), 100);
     const client = accessToken ? new NotionClient({ auth: accessToken }) : this.notion;
 
@@ -202,14 +208,16 @@ export class AuditLedger {
       }));
     }
 
+    if (!vercelOidcToken) throw new Error('notion_broker_identity_missing');
+
     const response = await fetch(`${CAPABILITY_SUPABASE_URL}/functions/v1/apex-notion-broker`, {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${CAPABILITY_SUPABASE_PUBLISHABLE_KEY}`,
-        apikey: CAPABILITY_SUPABASE_PUBLISHABLE_KEY,
         'content-type': 'application/json',
+        'x-vercel-oidc-token': vercelOidcToken,
       },
       body: JSON.stringify({ action: 'search', query, limit: boundedLimit }),
+      signal: AbortSignal.timeout(BROKER_TIMEOUT_MS),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {

@@ -2,7 +2,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { auditLedger } from '../src/bridge/audit.js';
 
 const SUPABASE_URL = process.env.APEX_CAPABILITY_SUPABASE_URL || 'https://dyhprklicgewmrimecey.supabase.co';
-const SUPABASE_KEY = process.env.APEX_CAPABILITY_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5aHBya2xpY2dld21yaW1lY2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI5NTkxMjUsImV4cCI6MjA2ODUzNTEyNX0.KSddhx8HBzWFM73hdM-p_IChuI8bdb5UitmehQYXRtI';
+const CANONICAL_ORIGIN = 'https://colossus-gateway.vercel.app';
+const BROKER_TIMEOUT_MS = 10_000;
+
+function requestHeader(req: IncomingMessage, name: string): string | undefined {
+  const value = req.headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value;
+}
 
 function headers(contentType = 'application/json') {
   return {
@@ -11,6 +17,7 @@ function headers(contentType = 'application/json') {
     'referrer-policy': 'no-referrer',
     'x-content-type-options': 'nosniff',
     'x-frame-options': 'DENY',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), clipboard-read=(self)',
     'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
   };
 }
@@ -27,15 +34,15 @@ async function readBody(req: IncomingMessage): Promise<any> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
 }
 
-async function broker(input: Record<string, unknown>) {
+async function broker(input: Record<string, unknown>, oidcToken: string) {
   const response = await fetch(`${SUPABASE_URL}/functions/v1/apex-notion-broker`, {
     method: 'POST',
     headers: {
-      authorization: `Bearer ${SUPABASE_KEY}`,
-      apikey: SUPABASE_KEY,
       'content-type': 'application/json',
+      'x-vercel-oidc-token': oidcToken,
     },
     body: JSON.stringify(input),
+    signal: AbortSignal.timeout(BROKER_TIMEOUT_MS),
   });
   const payload = await response.json().catch(() => ({}));
   return { response, payload };
@@ -48,11 +55,11 @@ const page = `<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Connect Notion — Colossus Gateway</title>
 <style>
-:root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color-scheme:dark;background:#0c0d10;color:#f4f4f5}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box}.card{width:min(680px,100%);background:#15171c;border:1px solid #30333b;border-radius:18px;padding:28px;box-shadow:0 24px 80px #0008}h1{margin:0 0 10px;font-size:28px}p{color:#b6bac5;line-height:1.5}.row{display:flex;gap:10px;flex-wrap:wrap}input{width:100%;box-sizing:border-box;background:#0d0f13;border:1px solid #3b3f49;color:#fff;border-radius:10px;padding:13px;font:inherit;margin:10px 0}button{background:#fff;color:#111;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}button.secondary{background:#292d35;color:#fff}.status{white-space:pre-wrap;background:#0d0f13;border:1px solid #2e323b;border-radius:10px;padding:14px;margin-top:16px;min-height:48px;color:#cdd1dc}.ok{color:#7ee787}.bad{color:#ff7b72}code{color:#d2a8ff}</style>
+:root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color-scheme:dark;background:#0c0d10;color:#f4f4f5}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box}.card{width:min(680px,100%);background:#15171c;border:1px solid #30333b;border-radius:18px;padding:28px;box-shadow:0 24px 80px #0008}h1{margin:0 0 10px;font-size:28px}p{color:#b6bac5;line-height:1.5}.row{display:flex;gap:10px;flex-wrap:wrap}input{width:100%;box-sizing:border-box;background:#0d0f13;border:1px solid #3b3f49;color:#fff;border-radius:10px;padding:13px;font:inherit;margin:10px 0}button{background:#fff;color:#111;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}button.secondary{background:#292d35;color:#fff}.status{white-space:pre-wrap;background:#0d0f13;border:1px solid #2e323b;border-radius:10px;padding:14px;margin-top:16px;min-height:48px;color:#cdd1dc}.ok{color:#7ee787}.bad{color:#ff7b72}</style>
 </head>
 <body><main class="card">
 <h1>Connect Notion to Colossus</h1>
-<p>This stores the integration token once in Supabase Vault, consumes the one-use setup capability, and immediately proves a direct Notion API search through the deployed gateway. The token is never written to GitHub, browser storage, or logs.</p>
+<p>This stores the integration token once in Supabase Vault, consumes the one-use setup capability, and immediately proves a direct Notion API search. The token is never written to GitHub, browser storage, or logs.</p>
 <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ntn_…">
 <div class="row"><button id="clipboard">Connect from clipboard</button><button id="connect" class="secondary">Connect entered token</button></div>
 <div id="status" class="status">Ready.</div>
@@ -70,7 +77,7 @@ async function connect(token){
     const response=await fetch('/notion/connect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token,capability})});
     tokenEl.value='';
     const data=await response.json();
-    if(!response.ok)throw new Error(data.error||data.detail||'Connection failed');
+    if(!response.ok)throw new Error(data.error||'Connection failed');
     show('CONNECTED\n\nDirect API: '+data.test.direct_api+'\nResult count: '+data.test.result_count+'\nFirst result: '+(data.test.results?.[0]?.title||'No matching page')+'\nAudit: '+data.audit.supabase,true);
   }catch(error){show(String(error.message||error),false);}
 }
@@ -91,30 +98,44 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
+  if (requestHeader(req, 'origin') !== CANONICAL_ORIGIN) {
+    res.writeHead(403, headers());
+    res.end(JSON.stringify({ error: 'origin_not_allowed' }));
+    return;
+  }
+
+  const oidcToken = requestHeader(req, 'x-vercel-oidc-token') || '';
+  if (!oidcToken) {
+    res.writeHead(503, headers());
+    res.end(JSON.stringify({ error: 'workload_identity_unavailable' }));
+    return;
+  }
+
   try {
     const input = await readBody(req);
     const token = typeof input?.token === 'string' ? input.token.trim() : '';
     const capability = typeof input?.capability === 'string' ? input.capability : '';
-    if (!token.startsWith('ntn_') || token.length < 20 || !capability) {
+    if (!/^ntn_[A-Za-z0-9_-]{16,508}$/.test(token) || !capability) {
       res.writeHead(400, headers());
       res.end(JSON.stringify({ error: 'token_and_capability_required' }));
       return;
     }
 
-    const connected = await broker({ action: 'connect', token, capability });
+    const connected = await broker({ action: 'connect', token, capability }, oidcToken);
     if (!connected.response.ok) {
       res.writeHead(connected.response.status, headers());
-      res.end(JSON.stringify({ error: connected.payload?.error || 'connect_failed', detail: connected.payload?.detail }));
+      res.end(JSON.stringify({ error: connected.payload?.error || 'connect_failed' }));
       return;
     }
 
-    const tested = await broker({ action: 'search', query: 'APEX Deployment Assets', limit: 5 });
+    const tested = await broker({ action: 'search', query: 'APEX Deployment Assets', limit: 5 }, oidcToken);
     if (!tested.response.ok) {
       res.writeHead(tested.response.status, headers());
-      res.end(JSON.stringify({ error: tested.payload?.error || 'test_failed', detail: tested.payload?.message }));
+      res.end(JSON.stringify({ error: tested.payload?.error || 'test_failed' }));
       return;
     }
 
+    const now = new Date().toISOString();
     const audit = await auditLedger.record({
       requestId: crypto.randomUUID(),
       action: 'notion_connect',
@@ -124,14 +145,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       target: { provider: 'notion', storage: 'supabase_vault' },
       arguments: { capability_consumed: true },
       result: { direct_api: tested.payload?.direct_api, result_count: tested.payload?.result_count },
-      startedAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
+      startedAt: now,
+      completedAt: now,
     });
 
     res.writeHead(200, headers());
     res.end(JSON.stringify({ ok: true, connected: connected.payload, test: tested.payload, audit }));
   } catch (error) {
-    res.writeHead(400, headers());
-    res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+    const message = error instanceof Error ? error.message : String(error);
+    res.writeHead(message === 'request_body_too_large' ? 413 : 400, headers());
+    res.end(JSON.stringify({ error: message === 'request_body_too_large' ? message : 'connect_request_failed' }));
   }
 }

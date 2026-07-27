@@ -252,7 +252,7 @@ export async function executeTool(name: string, args: Record<string, any>, conte
         const limit = Math.min(Math.max(args.limit || 10, 1), 50);
         const [box, notion] = await Promise.all([
           args.include_box ? new BoxClient(boxToken(context)).search({ query: args.query, limit }).catch((error) => ({ error: error instanceof Error ? error.message : String(error) })) : Promise.resolve(null),
-          args.include_notion ? auditLedger.retrieveNotion(args.query, limit) : Promise.resolve(null),
+          args.include_notion ? auditLedger.retrieveNotion(args.query, limit, context.notionAccessToken, context.vercelOidcToken) : Promise.resolve(null),
         ]);
         result = { query: args.query, box, notion };
         break;
