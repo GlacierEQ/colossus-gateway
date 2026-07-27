@@ -33,39 +33,42 @@ if (!oidcToken) {
   process.exit(1);
 }
 
+async function brokerCall(input) {
+  let response;
+  try {
+    response = await fetch('https://dyhprklicgewmrimecey.supabase.co/functions/v1/apex-notion-broker', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-vercel-oidc-token': oidcToken,
+      },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (error) {
+    console.error('[vercel-install-gate] OIDC broker request failed:', error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    console.error('[vercel-install-gate] OIDC broker rejected deployment identity:', response.status, payload?.error || 'unknown');
+    process.exit(1);
+  }
+  return payload;
+}
+
 const production = process.env.VERCEL_ENV === 'production';
-const brokerInput = production
-  ? { action: 'search', query: 'APEX Deployment Assets', limit: 1 }
-  : { action: 'status' };
+const status = await brokerCall({ action: 'status' });
+let notionProof = `Vault status (connected=${Boolean(status.connected)})`;
 
-let brokerResponse;
-try {
-  brokerResponse = await fetch('https://dyhprklicgewmrimecey.supabase.co/functions/v1/apex-notion-broker', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-vercel-oidc-token': oidcToken,
-    },
-    body: JSON.stringify(brokerInput),
-    signal: AbortSignal.timeout(10_000),
-  });
-} catch (error) {
-  console.error('[vercel-install-gate] OIDC broker request failed:', error instanceof Error ? error.message : String(error));
-  process.exit(1);
+if (production && status.connected === true) {
+  const search = await brokerCall({ action: 'search', query: 'APEX Deployment Assets', limit: 1 });
+  if (search.direct_api !== true) {
+    console.error('[vercel-install-gate] production Notion direct API proof was not returned');
+    process.exit(1);
+  }
+  notionProof = `direct Notion search (${Number(search.result_count || 0)} result)`;
 }
 
-const brokerPayload = await brokerResponse.json().catch(() => ({}));
-if (!brokerResponse.ok) {
-  console.error('[vercel-install-gate] OIDC broker rejected deployment identity:', brokerResponse.status, brokerPayload?.error || 'unknown');
-  process.exit(1);
-}
-
-if (production && brokerPayload.direct_api !== true) {
-  console.error('[vercel-install-gate] production Notion direct API proof was not returned');
-  process.exit(1);
-}
-
-const proof = production
-  ? `production OIDC + direct Notion search (${Number(brokerPayload.result_count || 0)} result)`
-  : `preview OIDC + Vault status (connected=${Boolean(brokerPayload.connected)})`;
-console.log(`[vercel-install-gate] API typecheck, 35 tests, production dependency audit, and ${proof} passed`);
+console.log(`[vercel-install-gate] API typecheck, 35 tests, high-severity dependency audit, ${status.identity_environment || 'unknown'} OIDC, and ${notionProof} passed`);
