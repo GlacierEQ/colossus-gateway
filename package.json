@@ -8,7 +8,7 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:api": "tsc -p tsconfig.api.json",
-    "build": "npm run typecheck:api && tsc",
+    "build": "npm run typecheck:api && npm test && tsc",
     "test": "vitest run",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:config": "node scripts/check-config.mjs",
