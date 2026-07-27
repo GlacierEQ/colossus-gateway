@@ -6,8 +6,13 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "tsx src/index.ts",
-    "build": "tsc",
-    "test": "vitest run"
+    "typecheck": "tsc --noEmit",
+    "typecheck:api": "tsc -p tsconfig.api.json",
+    "build": "npm run typecheck:api && tsc",
+    "test": "vitest run",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "check:config": "node scripts/check-config.mjs",
+    "verify": "npm run typecheck && npm run typecheck:api && npm test && npm run audit:prod"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -29,5 +34,8 @@
     "vitest": "^4.1.6",
     "@vercel/node": "^5.6.0",
     "@types/express": "^5.0.3"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }
