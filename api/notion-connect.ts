@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { auditLedger } from '../src/bridge/audit.js';
 
 const SUPABASE_URL = process.env.APEX_CAPABILITY_SUPABASE_URL || 'https://dyhprklicgewmrimecey.supabase.co';
-const SUPABASE_KEY = process.env.APEX_CAPABILITY_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6ImR5aHBya2xpY2dld21yaW1lY2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI5NTkxMjUsImV4cCI6MjA2ODUzNTEyNX0.KSddhx8HBzWFM73hdM-p_IChuI8bdb5UitmehQYXRtI';
 const CANONICAL_ORIGIN = 'https://colossus-gateway.vercel.app';
 const BROKER_TIMEOUT_MS = 10_000;
 
@@ -39,8 +38,6 @@ async function broker(input: Record<string, unknown>, oidcToken: string) {
   const response = await fetch(`${SUPABASE_URL}/functions/v1/apex-notion-broker`, {
     method: 'POST',
     headers: {
-      authorization: `Bearer ${SUPABASE_KEY}`,
-      apikey: SUPABASE_KEY,
       'content-type': 'application/json',
       'x-vercel-oidc-token': oidcToken,
     },
