@@ -29,7 +29,7 @@ function stringClaim(payload: JWTPayload, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
-async function verifyWorkloadIdentity(req: Request): Promise<{ environment: "production" | "preview" }> {
+async function verifyWorkloadIdentity(req: Request): Promise<void> {
   const token = req.headers.get("x-vercel-oidc-token")?.trim() || "";
   if (!token) throw new Error("workload_identity_missing");
 
@@ -40,23 +40,17 @@ async function verifyWorkloadIdentity(req: Request): Promise<{ environment: "pro
     clockTolerance: 5,
   });
 
-  const owner = stringClaim(payload, "owner");
-  const ownerId = stringClaim(payload, "owner_id");
-  const project = stringClaim(payload, "project");
-  const projectId = stringClaim(payload, "project_id");
-  const environment = stringClaim(payload, "environment");
-  const subject = payload.sub || "";
-
-  if (owner !== TEAM_SLUG || ownerId !== TEAM_ID || project !== PROJECT_NAME || projectId !== PROJECT_ID) {
+  const expectedSubject = `owner:${TEAM_SLUG}:project:${PROJECT_NAME}:environment:production`;
+  if (
+    stringClaim(payload, "owner") !== TEAM_SLUG ||
+    stringClaim(payload, "owner_id") !== TEAM_ID ||
+    stringClaim(payload, "project") !== PROJECT_NAME ||
+    stringClaim(payload, "project_id") !== PROJECT_ID ||
+    stringClaim(payload, "environment") !== "production" ||
+    payload.sub !== expectedSubject
+  ) {
     throw new Error("workload_identity_rejected");
   }
-
-  const expectedSubject = `owner:${TEAM_SLUG}:project:${PROJECT_NAME}:environment:${environment}`;
-  if ((environment === "production" || environment === "preview") && subject === expectedSubject) {
-    return { environment };
-  }
-
-  throw new Error("workload_identity_rejected");
 }
 
 async function readJson(req: Request): Promise<Record<string, unknown>> {
@@ -73,12 +67,7 @@ async function readJson(req: Request): Promise<Record<string, unknown>> {
 }
 
 function titleOf(item: any): string {
-  const candidates = [
-    item?.title,
-    item?.properties?.title?.title,
-    item?.properties?.Name?.title,
-    item?.properties?.name?.title,
-  ];
+  const candidates = [item?.title, item?.properties?.title?.title, item?.properties?.Name?.title, item?.properties?.name?.title];
   for (const candidate of candidates) {
     if (Array.isArray(candidate) && candidate[0]?.plain_text) return String(candidate[0].plain_text);
   }
@@ -88,9 +77,8 @@ function titleOf(item: any): string {
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
 
-  let identity: { environment: "production" | "preview" };
   try {
-    identity = await verifyWorkloadIdentity(req);
+    await verifyWorkloadIdentity(req);
   } catch {
     return json(401, { error: "workload_identity_rejected" });
   }
@@ -111,36 +99,23 @@ Deno.serve(async (req: Request) => {
     return json(message === "request_body_too_large" ? 413 : 400, { error: message });
   }
 
-  const action = input.action;
-
-  if (action === "connect") {
+  if (input.action === "connect") {
     const token = typeof input.token === "string" ? input.token.trim() : "";
     const capability = typeof input.capability === "string" ? input.capability : "";
-    if (!/^ntn_[A-Za-z0-9_-]{16,508}$/.test(token) || !capability) {
-      return json(400, { error: "token_and_capability_required" });
-    }
+    if (!/^ntn_[A-Za-z0-9_-]{16,508}$/.test(token) || !capability) return json(400, { error: "token_and_capability_required" });
 
-    const { data, error } = await admin.rpc("store_apex_notion_token", {
-      p_nonce: capability,
-      p_token: token,
-    });
+    const { data, error } = await admin.rpc("store_apex_notion_token", { p_nonce: capability, p_token: token });
     if (error) return json(401, { error: "notion_connect_failed" });
-    return json(200, {
-      ok: true,
-      connected: true,
-      storage: "supabase_vault",
-      identity_environment: identity.environment,
-      token_sha256: data?.token_sha256,
-    });
+    return json(200, { ok: true, connected: true, storage: "supabase_vault", identity_environment: "production", token_sha256: data?.token_sha256 });
   }
 
-  if (action === "status") {
+  if (input.action === "status") {
     const { data, error } = await admin.rpc("apex_notion_connection_status");
     if (error) return json(500, { error: "status_failed" });
-    return json(200, { ...data, identity_environment: identity.environment });
+    return json(200, { ...data, identity_environment: "production" });
   }
 
-  if (action === "search") {
+  if (input.action === "search") {
     const query = typeof input.query === "string" ? input.query.trim() : "";
     const limit = Math.min(Math.max(Number(input.limit || 10), 1), 100);
     if (!query || query.length > 500) return json(400, { error: "query_required" });
@@ -152,16 +127,8 @@ Deno.serve(async (req: Request) => {
     try {
       notionResponse = await fetch("https://api.notion.com/v1/search", {
         method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "notion-version": NOTION_VERSION,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          query,
-          page_size: limit,
-          sort: { direction: "descending", timestamp: "last_edited_time" },
-        }),
+        headers: { authorization: `Bearer ${token}`, "notion-version": NOTION_VERSION, "content-type": "application/json" },
+        body: JSON.stringify({ query, page_size: limit, sort: { direction: "descending", timestamp: "last_edited_time" } }),
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
     } catch {
@@ -169,33 +136,13 @@ Deno.serve(async (req: Request) => {
     }
 
     const payload = await notionResponse.json().catch(() => ({}));
-    if (!notionResponse.ok) {
-      return json(notionResponse.status, {
-        error: "notion_api_error",
-        status: notionResponse.status,
-        code: payload?.code,
-      });
-    }
+    if (!notionResponse.ok) return json(notionResponse.status, { error: "notion_api_error", status: notionResponse.status, code: payload?.code });
 
     const results = Array.isArray(payload?.results)
-      ? payload.results.slice(0, limit).map((item: any) => ({
-          id: item?.id,
-          object: item?.object,
-          url: item?.url,
-          last_edited_time: item?.last_edited_time,
-          title: titleOf(item),
-        }))
+      ? payload.results.slice(0, limit).map((item: any) => ({ id: item?.id, object: item?.object, url: item?.url, last_edited_time: item?.last_edited_time, title: titleOf(item) }))
       : [];
 
-    return json(200, {
-      ok: true,
-      provider: "notion",
-      direct_api: true,
-      identity_environment: identity.environment,
-      query,
-      result_count: results.length,
-      results,
-    });
+    return json(200, { ok: true, provider: "notion", direct_api: true, identity_environment: "production", query, result_count: results.length, results });
   }
 
   return json(400, { error: "unsupported_action" });
