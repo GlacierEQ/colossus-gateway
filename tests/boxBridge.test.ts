@@ -1,10 +1,23 @@
 import { createHash } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
+import { auditLedger } from '../src/bridge/audit.js';
 import { columnNumber, parseDelimited, stringifyDelimited, updateXlsx } from '../src/bridge/boxSpreadsheet.js';
 import { executeTool, TOOL_DEFINITIONS } from '../src/bridge/toolBridge.js';
 
 describe('Box bridge contract', () => {
+  beforeEach(() => {
+    vi.spyOn(auditLedger, 'record').mockResolvedValue({
+      request_id: 'vitest-audit',
+      supabase: 'mocked',
+      notion: 'mocked',
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('exposes the requested active tools', () => {
     const names = new Set(TOOL_DEFINITIONS.map((tool) => tool.name));
     for (const name of [
