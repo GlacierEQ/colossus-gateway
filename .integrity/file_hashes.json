@@ -1,7 +1,6 @@
 {
-  "repo": "colossus-gateway",
-  "algorithm": "sha256",
-  "file_count": 163,
+  "repo_name": "colossus-gateway",
+  "file_count": 162,
   "hashes": {
     "GODMIND_COLOSSUS.md": "978d3a5f2592bf5bdbfa3090b643e5b3e5eaa0e4e2c25bd518d9dd48963cea3f",
     "vercel.json": "b3c33973f4eece7a2160351b0879a675178474e853c8d81cde528b03a501d66f",
@@ -15,11 +14,10 @@
     "package.json": "5229b16882766505e3c55c311dd3c9e4d71799382e237ffb4b254419919f4c71",
     "DEPLOYMENT.md": "18cd4485163a67a4ad104a2dc42f4cb491510d70f8a334252fc16577afa8db97",
     "tsconfig.json": "63f34aa31463ad4cea0bd4323f9b583666834444150112b3e4bb9681b5ccd9b9",
-    "GEMINI.md": "bfcab5bef1e17e28b046a9fbfe8af6729696744b69be4ec0389f0c324ef17bfd",
+    "GEMINI.md": "a89a4b725cdba892e83c8c73ea7184b3285b25a0a62635f597cb973dad139e98",
     "AKOS.md": "fb5d5d6e0a7409113c2d49e294ba1352c615c518d9bfc0209fa027dfb70c6650",
     ".env.example": "bdddd930b959646b0b1a34a6d6ac9b91918dac888a99c60427231645dd3bec25",
     "AGENTS.md": "1b48bc6f7806d23a6042c21a0ade195cb18a451b7714afb6fc588de3849ada30",
-    "FORENSIC_REPORT_1FDV_23_0001009.md": "f07bc3e884eea594cd17990b77f3e19499c7e1a3c0e26b6ca9c46c91a981861d",
     "QUALITY_ASSURANCE_MANIFEST.md": "5781c789ca6c605a5f15b80f4d9a98536080b8279718221b728fa8247af45c83",
     "HELIX_STRAND.md": "673b86d51d58499053d37981f9a1b332297b6d9b4777432e43ec8d71b235de55",
     "mastermind_sidecar.py": "428cff11974e69d368ea10ab9656137c188d822f81d8b431d536512872282a7e",
