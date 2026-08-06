@@ -154,22 +154,10 @@ async function call(action){
     const data=await response.json();
     if(!response.ok)throw new Error(data.error||'Keymaster request failed');
     show(JSON.stringify(data,null,2),true);
-    if(action!=='inventory')await loadInventory();
-    else renderInventory(data.inventory||[]);
+    if(action==='inventory')renderInventory(data.inventory||[]);
   }catch(error){show(String(error.message||error),false);}
 }
 function renderInventory(items){inventoryEl.textContent=JSON.stringify(items,null,2);}
-async function loadInventory(){
-  const operator_code=$('operator').value;
-  if(!operator_code){inventoryEl.textContent='Enter the operator code, then press Refresh inventory.';return;}
-  $('operator').value='';
-  try{
-    const response=await fetch('/keymaster/connect',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'inventory',operator_code,request_id:requestId()}),cache:'no-store',credentials:'same-origin'});
-    const data=await response.json();
-    if(!response.ok)throw new Error(data.error||'Inventory failed');
-    renderInventory(data.inventory||[]);
-  }catch(error){inventoryEl.textContent=String(error.message||error);}
-}
 $('connect').onclick=()=>call('connect');
 $('replace').onclick=()=>call('replace');
 $('revoke').onclick=()=>call('revoke');
@@ -195,7 +183,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  const oidcToken = requestHeader(req, 'x-vercel-oidc-token') || '';
+  const oidcToken = process.env.VERCEL_OIDC_TOKEN || '';
   if (!oidcToken) {
     send(res, 503, { error: 'workload_identity_unavailable' });
     return;
