@@ -12,7 +12,7 @@
     { "src": "/functions", "dest": "/api/functions.ts" },
     { "src": "/call", "dest": "/api/call.ts" },
     { "src": "/keymaster/connect", "dest": "/api/keymaster-connect.ts" },
-    { "src": "/keymaster/import", "dest": "/api/keymaster-import.ts" },
+    { "src": "/keymaster/import", "dest": "/api/keymaster-connect.ts" },
     { "src": "/notion/call", "dest": "/api/notion-call.ts" },
     { "src": "/notion/connect", "dest": "/api/notion-connect.ts" },
     { "src": "/download", "dest": "/api/download.ts" },
