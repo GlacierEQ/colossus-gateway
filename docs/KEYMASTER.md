@@ -17,15 +17,20 @@ Supabase Edge Functions retain their own `SUPABASE_SERVICE_ROLE_KEY` inside the 
 1. Enable Vercel Secure Backend Access / OIDC Federation for the `colossus-gateway` project.
 2. Set one strong production value for `COLOSSUS_OPERATOR_CODE`.
 3. Deploy the gateway.
-4. Open the production route:
+4. Import any known credentials that already exist in Vercel by opening:
+
+   `https://colossus-gateway.vercel.app/keymaster/import`
+
+   The importer uses an exact built-in environment-variable allowlist, skips missing and already-bound credentials, returns no raw values, and creates a receipt for every insertion.
+5. Add credentials that are not already present in Vercel—especially JEFS credentials—through:
 
    `https://colossus-gateway.vercel.app/keymaster/connect`
 
-5. Enter the operator code, provider metadata, and one credential.
-6. Record the returned `secret_ref` in the connector configuration. Never record the raw value.
-7. Repeat for each downstream credential.
+6. Record only the returned `secret_ref` values in connector configuration.
+7. Verify every reference with a live read-only provider operation.
+8. Delete the corresponding downstream credential from Vercel only after its adapter succeeds by reference.
 
-The browser clears the operator code and secret field before the request completes and uses no local or session storage.
+Both browser pages clear operator and credential fields and use no local or session storage.
 
 ## Recommended inventory
 
@@ -95,7 +100,7 @@ There is intentionally no exported `getSecret()` function.
 
 ## Replacement and revocation
 
-Use the same page with an existing `secret_ref`:
+Use the connect page with an existing `secret_ref`:
 
 - **Replace existing** updates the Vault value, fingerprint, version, verification state, rotation date, and receipt.
 - **Revoke existing** deletes the Vault value, marks the metadata record revoked, and creates an append-only receipt.
