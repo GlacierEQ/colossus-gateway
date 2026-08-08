@@ -116,6 +116,7 @@ async function makeAppJwt(appId: number, privateKey: string): Promise<string> {
 async function github(path: string, token: string, init: RequestInit = {}) {
   const response = await fetch(`${GITHUB_API}${path}`, {
     ...init,
+    signal: init.signal ?? AbortSignal.timeout(15_000),
     headers: {
       accept: "application/vnd.github+json",
       authorization: `Bearer ${token}`,
@@ -286,16 +287,51 @@ async function sha256Hex(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function snapshotOrderColumn(table: string): string {
+  if (table === "apex_repo_atlas_repositories") return "repository_id";
+  if (table === "apex_repo_ignition_queue") return "priority";
+  if (table === "apex_repo_canonical_registry") return "registry_id";
+  throw new Error("unsupported_snapshot_table");
+}
+
 async function fetchSnapshotRows(admin: any, table: string, snapshotId: string): Promise<any[]> {
   const output: any[] = [];
-  for (let from = 0; from < 100_000; from += PAGE_SIZE) {
-    const result = await admin.from(table).select("*").eq("snapshot_id", snapshotId).range(from, from + PAGE_SIZE - 1);
+  const orderColumn = snapshotOrderColumn(table);
+  let from = 0;
+  while (from < 100_000) {
+    const result = await admin
+      .from(table)
+      .select("*")
+      .eq("snapshot_id", snapshotId)
+      .order(orderColumn, { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
     if (result.error) throw new Error(result.error.message || `${table}_read_failed`);
     const data = Array.isArray(result.data) ? result.data : [];
+    if (data.length === 0) return output;
     output.push(...data);
-    if (data.length < PAGE_SIZE) return output;
+    from += data.length;
   }
   throw new Error(`${table}_exceeds_page_limit`);
+}
+
+async function latestFinalizedSnapshot(admin: any): Promise<any | null> {
+  let from = 0;
+  while (from < 10_000) {
+    const result = await admin
+      .from("apex_repo_atlas_snapshots")
+      .select("snapshot_id,created_at,metadata")
+      .order("created_at", { ascending: false })
+      .range(from, from + 99);
+    if (result.error) throw new Error(result.error.message || "previous_snapshot_lookup_failed");
+    const data = Array.isArray(result.data) ? result.data : [];
+    if (data.length === 0) return null;
+    const finalized = data.find((row: any) =>
+      row?.metadata?.refresh_status === "refreshed" || row?.metadata?.seed_status === "seeded"
+    );
+    if (finalized) return finalized;
+    from += data.length;
+  }
+  throw new Error("previous_snapshot_lookup_exceeds_page_limit");
 }
 
 function memberSummary(row: any) {
@@ -426,17 +462,9 @@ Deno.serve(async (request: Request) => {
         .map((repo) => [Number(repo.id), repo]),
     ).values()].sort((left: any, right: any) => Number(left.id) - Number(right.id));
 
-    const previousSnapshotResult = await admin
-      .from("apex_repo_atlas_snapshots")
-      .select("snapshot_id,created_at")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (previousSnapshotResult.error) {
-      throw new Error(previousSnapshotResult.error.message || "previous_snapshot_lookup_failed");
-    }
-    const previousSnapshotId = typeof previousSnapshotResult.data?.snapshot_id === "string"
-      ? previousSnapshotResult.data.snapshot_id
+    const previousSnapshot = await latestFinalizedSnapshot(admin);
+    const previousSnapshotId = typeof previousSnapshot?.snapshot_id === "string"
+      ? previousSnapshot.snapshot_id
       : null;
     const previousRows = previousSnapshotId
       ? await fetchSnapshotRows(admin, "apex_repo_atlas_repositories", previousSnapshotId)
