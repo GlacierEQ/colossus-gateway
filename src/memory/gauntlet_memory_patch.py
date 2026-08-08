@@ -2,7 +2,7 @@
 gauntlet_memory_patch.py
 ------------------------
 Drop-in patch that retroactively wraps the run() function of any
-existing Colossus gauntlet module with gauntlet_memory_hook.
+existing Colossus gauntlet module with the current gauntlet_memory decorator.
 
 Usage in a gauntlet module's __main__ block:
 
@@ -15,13 +15,6 @@ Usage in a gauntlet module's __main__ block:
             scenario="feeder_overload_n1",
         )
         sys.exit(0 if patched.run() else 1)
-
-Or as a standalone patch from a script:
-
-    python scripts/run_gauntlet_with_memory.py \
-        --module xai_colossus_energy.gauntlets.feeder_overload \
-        --repo xai-colossus-energy \
-        --scenario feeder_overload_n1
 """
 
 from __future__ import annotations
@@ -31,7 +24,7 @@ import logging
 import types
 from typing import Optional
 
-from src.memory.memory_hooks import gauntlet_memory_hook
+from src.memory.memory_hooks import gauntlet_memory
 
 log = logging.getLogger(__name__)
 
@@ -51,12 +44,10 @@ class PatchedGauntlet:
                 "Colossus gauntlets must expose a top-level run() -> dict."
             )
 
-        # Wrap in-place so existing callers also get memory writes
         original_run = module.run
-        module.run = gauntlet_memory_hook(
-            repo=repo,
-            scenario=scenario,
-            tags=self.tags,
+        module.run = gauntlet_memory(
+            scenario_type=scenario,
+            tags=[repo, *self.tags],
         )(original_run)
         log.info(
             "[gauntlet_memory_patch] patched %s.run() → memory hooks active for %s/%s",
@@ -76,29 +67,13 @@ def patch_gauntlet(
     scenario: str,
     tags: Optional[list[str]] = None,
 ) -> PatchedGauntlet:
-    """
-    Wrap a gauntlet module's run() with memory hooks.
-
-    Args:
-        module:   Already-imported module object, or dotted import path string.
-        repo:     Colossus repo name (e.g. 'xai-colossus-energy').
-        scenario: Gauntlet scenario name (e.g. 'feeder_overload_n1').
-        tags:     Optional list of extra tags stored with the memory record.
-
-    Returns:
-        PatchedGauntlet with a .run() method.
-    """
+    """Wrap a gauntlet module's run() with memory hooks."""
     if isinstance(module, str):
         module = importlib.import_module(module)
     return PatchedGauntlet(module=module, repo=repo, scenario=scenario, tags=tags)
 
 
-# ---------------------------------------------------------------------------
-# Per-repo convenience wrappers
-# ---------------------------------------------------------------------------
-
 REPO_SCENARIO_MAP = {
-    # (module_path, repo, scenario, tags)
     "servers:rack_failure": (
         "xai_colossus_servers.gauntlets.rack_failure",
         "xai-colossus-servers",
@@ -145,15 +120,7 @@ REPO_SCENARIO_MAP = {
 
 
 def patch_known_gauntlet(key: str) -> PatchedGauntlet:
-    """
-    Convenience function — patch a gauntlet by its short key.
-
-    Example:
-        g = patch_known_gauntlet("energy:feeder_overload")
-        g.run()
-
-    Available keys: see REPO_SCENARIO_MAP.
-    """
+    """Patch a gauntlet by its short registry key."""
     if key not in REPO_SCENARIO_MAP:
         raise KeyError(
             f"Unknown gauntlet key '{key}'. Available: {list(REPO_SCENARIO_MAP)}"

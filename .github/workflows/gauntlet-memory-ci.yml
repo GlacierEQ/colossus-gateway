@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt || true
-          pip install pinecone-client httpx python-dotenv pytest pytest-asyncio || true
+          pip install pinecone httpx python-dotenv pytest pytest-asyncio || true
 
       - name: Run memory health check
         env:
@@ -46,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio python-dotenv
-          pip install pinecone-client httpx || true
+          pip install pinecone httpx || true
 
       - name: Run memory hooks tests
         run: |
@@ -66,8 +66,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest python-dotenv
-          pip install pinecone-client httpx || true
+          pip install pinecone httpx || true
 
       - name: Show gauntlet patch coverage
+        env:
+          PYTHONPATH: .
         run: |
           python scripts/run_gauntlet_with_memory.py --patch-status
