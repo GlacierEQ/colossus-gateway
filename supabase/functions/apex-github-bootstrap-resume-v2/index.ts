@@ -146,9 +146,8 @@ Deno.serve(async (request: Request) => {
     });
     if (resolved.error || typeof resolved.data?.secret !== "string") throw new Error(resolved.error?.message || "private_key_resolution_failed");
     privateKey = resolved.data.secret;
-    const signed = await appJwt(Number(session.app_id), privateKey);
+    const signed = await appJwt(Number(session.app_id), privateKey).finally(() => { privateKey = ""; });
     jwt = signed.jwt;
-    privateKey = "";
 
     const installations = await listAppInstallations(jwt);
     const matches = installations.filter((item) => Number(item?.app_id) === Number(session.app_id) && String(item?.account?.login || "") === OWNER);
@@ -173,19 +172,22 @@ Deno.serve(async (request: Request) => {
     const minted = await github(`/app/installations/${installationId}/access_tokens`, jwt, {
       method: "POST",
       body: JSON.stringify({ repositories: repoNames, permissions: { contents: "read" } }),
-    });
+    }).finally(() => { jwt = ""; });
     if (typeof minted?.token !== "string") throw new Error("github_installation_token_invalid");
     token = minted.token;
 
     const readChecks: Array<Record<string, unknown>> = [];
-    for (const repository of anchors) {
-      const response = await fetch(`${GITHUB_API}/repos/${repository}`, {
-        headers: { accept: "application/vnd.github+json", authorization: `Bearer ${token}`, "x-github-api-version": GITHUB_API_VERSION },
-      });
-      readChecks.push({ repository, status: response.status, ok: response.ok });
-      if (!response.ok) throw new Error(`repository_read_verification_failed:${repository}`);
+    try {
+      for (const repository of anchors) {
+        const response = await fetch(`${GITHUB_API}/repos/${repository}`, {
+          headers: { accept: "application/vnd.github+json", authorization: `Bearer ${token}`, "x-github-api-version": GITHUB_API_VERSION },
+        });
+        readChecks.push({ repository, status: response.status, ok: response.ok });
+        if (!response.ok) throw new Error(`repository_read_verification_failed:${repository}`);
+      }
+    } finally {
+      token = "";
     }
-    token = "";
 
     const verified = await admin.rpc("verify_apex_keymaster_secret", {
       p_secret_ref: session.app_private_key_ref,
