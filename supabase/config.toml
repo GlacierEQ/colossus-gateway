@@ -1,2 +1,8 @@
 [functions.apex-notion-broker]
 verify_jwt = false
+
+[functions.apex-github-bootstrap-resume-v2]
+verify_jwt = false
+
+[functions.apex-github-repo-atlas-seed]
+verify_jwt = false
