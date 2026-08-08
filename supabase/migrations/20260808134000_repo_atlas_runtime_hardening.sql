@@ -8,6 +8,9 @@ create unique index if not exists apex_repo_atlas_snapshots_seed_bootstrap_ref_u
   where seed_bootstrap_ref is not null;
 
 alter table public.apex_repo_ignition_queue
+  add column if not exists status text not null default 'queued';
+
+alter table public.apex_repo_ignition_queue
   drop constraint if exists apex_repo_ignition_queue_status_check;
 
 alter table public.apex_repo_ignition_queue
