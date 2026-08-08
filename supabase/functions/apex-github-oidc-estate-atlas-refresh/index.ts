@@ -92,7 +92,21 @@ function normalizeRsaPrivateKey(pem: string): string {
   const pkcs1 = base64ToBytes(raw);
   const version = Uint8Array.of(0x02, 0x01, 0x00);
   const algorithm = Uint8Array.of(
-    0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00,
+    0x30,
+    0x0d,
+    0x06,
+    0x09,
+    0x2a,
+    0x86,
+    0x48,
+    0x86,
+    0xf7,
+    0x0d,
+    0x01,
+    0x01,
+    0x01,
+    0x05,
+    0x00,
   );
   const octet = concatBytes(Uint8Array.of(0x04), derLength(pkcs1.length), pkcs1);
   const body = concatBytes(version, algorithm, octet);
@@ -130,6 +144,41 @@ async function github(path: string, token: string, init: RequestInit = {}) {
   return payload;
 }
 
+function safeFailure(error: unknown): { status: number; code: string; retryable: boolean } {
+  const message = error instanceof Error ? error.message : "";
+  const name = error instanceof Error ? error.name : "";
+  if (message.includes("repo_atlas_refresh_in_progress")) {
+    return { status: 409, code: "refresh_in_progress", retryable: true };
+  }
+  if (message.includes("repo_atlas_refresh_lease_lost")) {
+    return { status: 409, code: "refresh_lease_lost", retryable: true };
+  }
+  const githubStatus = /^github_http_(\d{3})$/.exec(message);
+  if (githubStatus) {
+    const status = Number(githubStatus[1]);
+    return {
+      status: status === 429 || status >= 500 ? 503 : 502,
+      code: "github_dependency_failed",
+      retryable: status === 429 || status >= 500,
+    };
+  }
+  if (name === "TimeoutError" || /timed out|timeout/i.test(message)) {
+    return { status: 504, code: "github_dependency_timeout", retryable: true };
+  }
+  if (
+    message === "github_app_not_bootstrapped" ||
+    message === "all_repository_installation_not_verified" ||
+    message === "repo_atlas_refresh_claim_failed" ||
+    message === "private_key_resolution_failed"
+  ) {
+    return { status: 503, code: "estate_refresh_dependency_unavailable", retryable: true };
+  }
+  if (message === "broker_configuration_missing") {
+    return { status: 500, code: "broker_configuration_missing", retryable: false };
+  }
+  return { status: 500, code: "estate_atlas_refresh_failed", retryable: false };
+}
+
 function iso(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;
   const time = Date.parse(value);
@@ -138,8 +187,12 @@ function iso(value: unknown): string | null {
 
 function family(name: string, description: string): string {
   const value = `${name} ${description}`.toLowerCase();
-  if (/1fdv|1fda|legal|court|case|docket|law|brief|motion|evidence|litigation|tro|family/.test(value)) return "legal_evidence";
-  if (/colossus|control.?plane|orchestr|mastermind|monolith|\bakos\b|\baeon\b|\bapex\b|gateway|omni/.test(value)) return "control_plane";
+  if (/1fdv|1fda|legal|court|case|docket|law|brief|motion|evidence|litigation|tro|family/.test(value)) {
+    return "legal_evidence";
+  }
+  if (/colossus|control.?plane|orchestr|mastermind|monolith|\bakos\b|\baeon\b|\bapex\b|gateway|omni/.test(value)) {
+    return "control_plane";
+  }
   if (/memory|mem0|supermemory|recall|vector|embed|rag|knowledge/.test(value)) return "memory_retrieval";
   if (/pdf|document|ocr|office|word|docx/.test(value)) return "document_intelligence";
   if (/file|filesystem|\bfs\b|sorter|navigator|commander|storage/.test(value)) return "file_operations";
@@ -147,7 +200,9 @@ function family(name: string, description: string): string {
   if (/browser|extension|selenium|playwright|web.?agent/.test(value)) return "browser_automation";
   if (/security|cyber|forensic|antivirus|defense|osint/.test(value)) return "security_forensics";
   if (/agent|assistant|autogpt|crew|swarm|claw|aider|cline/.test(value)) return "agents";
-  if (/research|scientist|deepseek|\bllm\b|\bgpt\b|claude|gemma|kimi|minimax|model/.test(value)) return "research_models";
+  if (/research|scientist|deepseek|\bllm\b|\bgpt\b|claude|gemma|kimi|minimax|model/.test(value)) {
+    return "research_models";
+  }
   if (/frontend|dashboard|\bui\b|website|mobile|android|swift/.test(value)) return "interfaces";
   return "other";
 }
@@ -165,13 +220,15 @@ function lifecycle(repo: any): string {
 }
 
 function signature(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/z[-_]?backup[-_]?/g, "")
-    .replace(/\b(main|master|backup|archive|legacy|unified|pro|max|plus|source|public|private)\b/g, "")
-    .replace(/[-_.]+v?\d+(?:\.\d+)*/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 120) || name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 120);
+  return (
+    name
+      .toLowerCase()
+      .replace(/z[-_]?backup[-_]?/g, "")
+      .replace(/\b(main|master|backup|archive|legacy|unified|pro|max|plus|source|public|private)\b/g, "")
+      .replace(/[-_.]+v?\d+(?:\.\d+)*/g, "")
+      .replace(/[^a-z0-9]+/g, "")
+      .slice(0, 120) || name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 120)
+  );
 }
 
 function score(repo: any, repoFamily: string, repoLifecycle: string) {
@@ -204,7 +261,16 @@ function score(repo: any, repoFamily: string, repoLifecycle: string) {
     value += 5;
     reasons.push("described");
   }
-  if (["control_plane", "runtime_deployment", "legal_evidence", "memory_retrieval", "document_intelligence", "file_operations"].includes(repoFamily)) {
+  if (
+    [
+      "control_plane",
+      "runtime_deployment",
+      "legal_evidence",
+      "memory_retrieval",
+      "document_intelligence",
+      "file_operations",
+    ].includes(repoFamily)
+  ) {
     value += 10;
     reasons.push("strategic_family");
   }
@@ -287,6 +353,14 @@ async function sha256Hex(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+async function renewRefreshLease(admin: any, claimId: string): Promise<void> {
+  if (!claimId) throw new Error("repo_atlas_refresh_lease_lost");
+  const renewed = await admin.rpc("renew_apex_repo_atlas_refresh", { p_claim_id: claimId });
+  if (renewed.error || typeof renewed.data !== "string") {
+    throw new Error("repo_atlas_refresh_lease_lost");
+  }
+}
+
 function snapshotOrderColumn(table: string): string {
   if (table === "apex_repo_atlas_repositories") return "repository_id";
   if (table === "apex_repo_ignition_queue") return "priority";
@@ -294,18 +368,24 @@ function snapshotOrderColumn(table: string): string {
   throw new Error("unsupported_snapshot_table");
 }
 
-async function fetchSnapshotRows(admin: any, table: string, snapshotId: string): Promise<any[]> {
+async function fetchSnapshotRows(
+  admin: any,
+  table: string,
+  snapshotId: string,
+  claimId: string,
+): Promise<any[]> {
   const output: any[] = [];
   const orderColumn = snapshotOrderColumn(table);
   let from = 0;
   while (from < 100_000) {
+    await renewRefreshLease(admin, claimId);
     const result = await admin
       .from(table)
       .select("*")
       .eq("snapshot_id", snapshotId)
       .order(orderColumn, { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
-    if (result.error) throw new Error(result.error.message || `${table}_read_failed`);
+    if (result.error) throw new Error(`${table}_read_failed`);
     const data = Array.isArray(result.data) ? result.data : [];
     if (data.length === 0) return output;
     output.push(...data);
@@ -314,19 +394,26 @@ async function fetchSnapshotRows(admin: any, table: string, snapshotId: string):
   throw new Error(`${table}_exceeds_page_limit`);
 }
 
-async function latestFinalizedSnapshot(admin: any): Promise<any | null> {
+async function latestFinalizedSnapshot(
+  admin: any,
+  installationId: number,
+  claimId: string,
+): Promise<any | null> {
   let from = 0;
   while (from < 10_000) {
+    await renewRefreshLease(admin, claimId);
     const result = await admin
       .from("apex_repo_atlas_snapshots")
-      .select("snapshot_id,created_at,metadata")
+      .select("snapshot_id,installation_id,created_at,metadata")
+      .eq("installation_id", installationId)
       .order("created_at", { ascending: false })
       .range(from, from + 99);
-    if (result.error) throw new Error(result.error.message || "previous_snapshot_lookup_failed");
+    if (result.error) throw new Error("previous_snapshot_lookup_failed");
     const data = Array.isArray(result.data) ? result.data : [];
     if (data.length === 0) return null;
-    const finalized = data.find((row: any) =>
-      row?.metadata?.refresh_status === "refreshed" || row?.metadata?.seed_status === "seeded"
+    const finalized = data.find(
+      (row: any) =>
+        row?.metadata?.refresh_status === "refreshed" || row?.metadata?.seed_status === "seeded",
     );
     if (finalized) return finalized;
     from += data.length;
@@ -383,7 +470,9 @@ Deno.serve(async (request: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRole) return json(500, { ok: false, error: "broker_configuration_missing" });
-  const admin = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
+  const admin = createClient(supabaseUrl, serviceRole, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   let privateKey = "";
   let appJwt = "";
@@ -407,13 +496,20 @@ Deno.serve(async (request: Request) => {
     // the verified GitHub App installation is durable; every refresh is independently
     // authorized by a fresh, tightly bound GitHub Actions OIDC assertion above.
     const installationId = Number(session.installation_id);
-    if (!Number.isSafeInteger(installationId) || installationId <= 0) throw new Error("invalid_installation_id");
+    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+      throw new Error("invalid_installation_id");
+    }
 
     const refreshClaim = await admin.rpc("claim_apex_repo_atlas_refresh");
     if (refreshClaim.error || typeof refreshClaim.data !== "string") {
-      throw new Error(refreshClaim.error?.message || "repo_atlas_refresh_claim_failed");
+      const claimMessage = refreshClaim.error?.message || "";
+      if (claimMessage.includes("repo_atlas_refresh_in_progress")) {
+        throw new Error("repo_atlas_refresh_in_progress");
+      }
+      throw new Error("repo_atlas_refresh_claim_failed");
     }
     refreshClaimId = refreshClaim.data;
+    await renewRefreshLease(admin, refreshClaimId);
 
     const runId = claim(oidcPayload, "run_id") || "unknown";
     const requestId = `oidc-estate-${runId}-${crypto.randomUUID()}`.slice(0, 256);
@@ -425,7 +521,7 @@ Deno.serve(async (request: Request) => {
       p_operation: "metadata_only_estate_refresh",
     });
     if (resolved.error || typeof resolved.data?.secret !== "string") {
-      throw new Error(resolved.error?.message || "private_key_resolution_failed");
+      throw new Error("private_key_resolution_failed");
     }
     privateKey = resolved.data.secret;
     appJwt = await makeAppJwt(Number(session.app_id), privateKey).finally(() => {
@@ -446,36 +542,64 @@ Deno.serve(async (request: Request) => {
     const repositories: any[] = [];
     try {
       for (let page = 1; page <= MAX_REPOSITORY_PAGES; page += 1) {
-        const payload = await github(`/installation/repositories?per_page=100&page=${page}`, installationToken);
+        await renewRefreshLease(admin, refreshClaimId);
+        const payload = await github(
+          `/installation/repositories?per_page=100&page=${page}`,
+          installationToken,
+        );
         const items = Array.isArray(payload?.repositories) ? payload.repositories : [];
         repositories.push(...items);
         if (items.length < 100) break;
-        if (page === MAX_REPOSITORY_PAGES) throw new Error("repository_inventory_exceeds_page_limit");
+        if (page === MAX_REPOSITORY_PAGES) {
+          throw new Error("repository_inventory_exceeds_page_limit");
+        }
       }
     } finally {
       installationToken = "";
     }
 
-    const deduped = [...new Map(
-      repositories
-        .filter((repo) => Number.isSafeInteger(Number(repo?.id)) && Number(repo.id) > 0 && typeof repo?.full_name === "string")
-        .map((repo) => [Number(repo.id), repo]),
-    ).values()].sort((left: any, right: any) => Number(left.id) - Number(right.id));
+    await renewRefreshLease(admin, refreshClaimId);
+    const deduped = [
+      ...new Map(
+        repositories
+          .filter(
+            (repo) =>
+              Number.isSafeInteger(Number(repo?.id)) &&
+              Number(repo.id) > 0 &&
+              typeof repo?.full_name === "string",
+          )
+          .map((repo) => [Number(repo.id), repo]),
+      ).values(),
+    ].sort((left: any, right: any) => Number(left.id) - Number(right.id));
 
-    const previousSnapshot = await latestFinalizedSnapshot(admin);
-    const previousSnapshotId = typeof previousSnapshot?.snapshot_id === "string"
-      ? previousSnapshot.snapshot_id
-      : null;
+    const previousSnapshot = await latestFinalizedSnapshot(
+      admin,
+      installationId,
+      refreshClaimId,
+    );
+    const previousSnapshotId =
+      typeof previousSnapshot?.snapshot_id === "string" ? previousSnapshot.snapshot_id : null;
     const previousRows = previousSnapshotId
-      ? await fetchSnapshotRows(admin, "apex_repo_atlas_repositories", previousSnapshotId)
+      ? await fetchSnapshotRows(
+          admin,
+          "apex_repo_atlas_repositories",
+          previousSnapshotId,
+          refreshClaimId,
+        )
       : [];
     const previousQueue = previousSnapshotId
-      ? await fetchSnapshotRows(admin, "apex_repo_ignition_queue", previousSnapshotId)
+      ? await fetchSnapshotRows(admin, "apex_repo_ignition_queue", previousSnapshotId, refreshClaimId)
       : [];
     const previousRegistry = previousSnapshotId
-      ? await fetchSnapshotRows(admin, "apex_repo_canonical_registry", previousSnapshotId)
+      ? await fetchSnapshotRows(
+          admin,
+          "apex_repo_canonical_registry",
+          previousSnapshotId,
+          refreshClaimId,
+        )
       : [];
 
+    await renewRefreshLease(admin, refreshClaimId);
     const claimed = await admin
       .from("apex_repo_atlas_snapshots")
       .insert({
@@ -492,25 +616,35 @@ Deno.serve(async (request: Request) => {
       .select("snapshot_id")
       .single();
     if (claimed.error || typeof claimed.data?.snapshot_id !== "string") {
-      throw new Error(claimed.error?.message || "snapshot_create_failed");
+      throw new Error("snapshot_create_failed");
     }
     snapshotId = claimed.data.snapshot_id;
 
     const rows = deduped.map((repo: any) => repoRow(snapshotId, repo));
-    const previousById = new Map(previousRows.map((row: any) => [Number(row.repository_id), row]));
-    const currentById = new Map(rows.map((row: any) => [Number(row.repository_id), row]));
-    const newIds = [...currentById.keys()].filter((id) => !previousById.has(id)).sort((a, b) => a - b);
-    const removedIds = [...previousById.keys()].filter((id) => !currentById.has(id)).sort((a, b) => a - b);
+    const previousById = new Map<number, any>(
+      previousRows.map((row: any) => [Number(row.repository_id), row]),
+    );
+    const currentById = new Map<number, any>(
+      rows.map((row: any) => [Number(row.repository_id), row]),
+    );
+    const newIds = [...currentById.keys()]
+      .filter((id) => !previousById.has(id))
+      .sort((left, right) => left - right);
+    const removedIds = [...previousById.keys()]
+      .filter((id) => !currentById.has(id))
+      .sort((left, right) => left - right);
     const renamedIds: number[] = [];
     const changedIds: number[] = [];
     for (const [id, current] of currentById) {
       const previous = previousById.get(id);
       if (!previous) continue;
       if (previous.full_name !== current.full_name) renamedIds.push(id);
-      if (JSON.stringify(comparable(previous)) !== JSON.stringify(comparable(current))) changedIds.push(id);
+      if (JSON.stringify(comparable(previous)) !== JSON.stringify(comparable(current))) {
+        changedIds.push(id);
+      }
     }
-    renamedIds.sort((a, b) => a - b);
-    changedIds.sort((a, b) => a - b);
+    renamedIds.sort((left, right) => left - right);
+    changedIds.sort((left, right) => left - right);
     const changedIdSet = new Set(changedIds);
 
     const inventoryPayload = rows
@@ -519,11 +653,14 @@ Deno.serve(async (request: Request) => {
     const inventoryRoot = await sha256Hex(JSON.stringify(inventoryPayload));
 
     for (let index = 0; index < rows.length; index += 100) {
-      const inserted = await admin.from("apex_repo_atlas_repositories").insert(rows.slice(index, index + 100));
-      if (inserted.error) throw new Error(inserted.error.message || "atlas_repository_insert_failed");
+      await renewRefreshLease(admin, refreshClaimId);
+      const inserted = await admin
+        .from("apex_repo_atlas_repositories")
+        .insert(rows.slice(index, index + 100));
+      if (inserted.error) throw new Error("atlas_repository_insert_failed");
     }
 
-    const previousIdByFullName = new Map(
+    const previousIdByFullName = new Map<string, number>(
       previousRows.map((row: any) => [String(row.full_name), Number(row.repository_id)]),
     );
     const previousStatusById = new Map<number, string>();
@@ -534,9 +671,10 @@ Deno.serve(async (request: Request) => {
 
     const candidates = rows
       .filter((row: any) => !row.is_archived && row.lifecycle !== "backup")
-      .sort((left: any, right: any) =>
-        right.ignition_score - left.ignition_score ||
-        String(right.pushed_at || "").localeCompare(String(left.pushed_at || ""))
+      .sort(
+        (left: any, right: any) =>
+          right.ignition_score - left.ignition_score ||
+          String(right.pushed_at || "").localeCompare(String(left.pushed_at || "")),
       )
       .slice(0, 25);
     const queueRows = candidates.map((row: any, index: number) => {
@@ -546,7 +684,9 @@ Deno.serve(async (request: Request) => {
       if (!QUEUE_STATUSES.has(status)) status = "queued";
       if (status === "completed" && changedIdSet.has(repositoryId)) status = "queued";
       const reasons = [...(Array.isArray(row.metadata?.reasons) ? row.metadata.reasons : [])];
-      if (priorStatus === "completed" && status === "queued") reasons.push("repository_changed_since_completion");
+      if (priorStatus === "completed" && status === "queued") {
+        reasons.push("repository_changed_since_completion");
+      }
       return {
         snapshot_id: snapshotId,
         full_name: row.full_name,
@@ -558,8 +698,9 @@ Deno.serve(async (request: Request) => {
       };
     });
     if (queueRows.length) {
+      await renewRefreshLease(admin, refreshClaimId);
       const insertedQueue = await admin.from("apex_repo_ignition_queue").insert(queueRows);
-      if (insertedQueue.error) throw new Error(insertedQueue.error.message || "ignition_queue_insert_failed");
+      if (insertedQueue.error) throw new Error("ignition_queue_insert_failed");
     }
 
     const groups = new Map<string, any[]>();
@@ -568,7 +709,7 @@ Deno.serve(async (request: Request) => {
       members.push(row);
       groups.set(row.name_signature, members);
     }
-    const previousVerified = new Map(
+    const previousVerified = new Map<string, any>(
       previousRegistry
         .filter((row: any) => row.status === "verified" && row.confidence === "verified")
         .map((row: any) => [String(row.name_signature), row]),
@@ -578,9 +719,10 @@ Deno.serve(async (request: Request) => {
     let verifiedCarryForwardCount = 0;
     for (const [nameSignature, members] of groups) {
       if (!nameSignature || members.length <= 1) continue;
-      const ordered = [...members].sort((left: any, right: any) =>
-        right.ignition_score - left.ignition_score ||
-        String(right.pushed_at || "").localeCompare(String(left.pushed_at || ""))
+      const ordered = [...members].sort(
+        (left: any, right: any) =>
+          right.ignition_score - left.ignition_score ||
+          String(right.pushed_at || "").localeCompare(String(left.pushed_at || "")),
       );
       const verified = previousVerified.get(nameSignature);
       if (verified && currentNames.has(String(verified.candidate_canonical))) {
@@ -594,7 +736,9 @@ Deno.serve(async (request: Request) => {
           status: "verified",
           confidence: "verified",
           rationale: {
-            ...(verified.rationale && typeof verified.rationale === "object" ? verified.rationale : {}),
+            ...(verified.rationale && typeof verified.rationale === "object"
+              ? verified.rationale
+              : {}),
             carried_from_snapshot: previousSnapshotId,
             carry_forward_basis: "verified_direct_evidence_and_candidate_still_present",
           },
@@ -613,10 +757,11 @@ Deno.serve(async (request: Request) => {
       }
     }
     for (let index = 0; index < registryRows.length; index += 100) {
-      const insertedRegistry = await admin.from("apex_repo_canonical_registry").insert(registryRows.slice(index, index + 100));
-      if (insertedRegistry.error) {
-        throw new Error(insertedRegistry.error.message || "canonical_registry_insert_failed");
-      }
+      await renewRefreshLease(admin, refreshClaimId);
+      const insertedRegistry = await admin
+        .from("apex_repo_canonical_registry")
+        .insert(registryRows.slice(index, index + 100));
+      if (insertedRegistry.error) throw new Error("canonical_registry_insert_failed");
     }
 
     const familyCounts: Record<string, number> = {};
@@ -640,86 +785,77 @@ Deno.serve(async (request: Request) => {
       state_changes: changedIds.length,
     };
 
-    const finalized = await admin
-      .from("apex_repo_atlas_snapshots")
-      .update({
-        metadata: {
-          owner: OWNER,
-          installation_scope: "all",
-          scan_mode: "metadata_only",
-          refresh_status: "refreshed",
-          previous_snapshot_id: previousSnapshotId,
-          refresh_claim_id: refreshClaimId,
-          inventory_root_sha256: inventoryRoot,
-          inventory_token_permissions: { metadata: "read" },
-          inventory_token_persisted: false,
-          github_content_fetch: false,
-          delta,
-          delta_repository_ids: {
-            new: newIds,
-            removed_or_transferred: removedIds,
-            renamed_or_transferred: renamedIds,
-            state_changes: changedIds,
-          },
-        },
-      })
-      .eq("snapshot_id", snapshotId);
-    if (finalized.error) throw new Error(finalized.error.message || "snapshot_finalize_failed");
+    const finalSnapshotMetadata = {
+      owner: OWNER,
+      installation_scope: "all",
+      scan_mode: "metadata_only",
+      refresh_status: "refreshed",
+      previous_snapshot_id: previousSnapshotId,
+      refresh_claim_id: refreshClaimId,
+      inventory_root_sha256: inventoryRoot,
+      inventory_token_permissions: { metadata: "read" },
+      inventory_token_persisted: false,
+      github_content_fetch: false,
+      delta,
+      delta_repository_ids: {
+        new: newIds,
+        removed_or_transferred: removedIds,
+        renamed_or_transferred: renamedIds,
+        state_changes: changedIds,
+      },
+    };
+    const tokenMetadata = {
+      credential_path: "github_oidc_estate_refresh",
+      permissions: { metadata: "read" },
+      operation: "metadata_only_estate_refresh",
+      expires_at: minted.expires_at,
+      workflow_ref: claim(oidcPayload, "workflow_ref"),
+      workflow_sha: claim(oidcPayload, "workflow_sha"),
+      run_id: runId,
+      token_persisted: false,
+    };
+    const snapshotAuditMetadata = {
+      source: "github_oidc_estate_refresh",
+      previous_snapshot_id: previousSnapshotId,
+      repository_count: rows.length,
+      original_count: originalCount,
+      fork_count: forkCount,
+      private_count: privateCount,
+      archived_count: archivedCount,
+      inventory_root_sha256: inventoryRoot,
+      delta,
+      token_persisted: false,
+    };
+    const canonicalAuditMetadata = {
+      candidate_count: registryRows.length,
+      verified_carry_forward_count: verifiedCarryForwardCount,
+    };
+    const queueAuditMetadata = {
+      queue_count: queueRows.length,
+      top_n: 25,
+      prior_statuses_preserved_by_repository_id: true,
+    };
 
-    const tokenReceipt = await admin.rpc("apex_github_bootstrap_write_receipt", {
+    await renewRefreshLease(admin, refreshClaimId);
+    const finalized = await admin.rpc("finalize_apex_repo_atlas_refresh", {
+      p_claim_id: refreshClaimId,
+      p_snapshot_id: snapshotId,
       p_bootstrap_ref: session.bootstrap_ref,
       p_request_id: requestId,
-      p_action: "token_minted",
       p_actor: `${ACTOR}:${runId}`,
-      p_outcome: "succeeded",
-      p_metadata: {
-        credential_path: "github_oidc_estate_refresh",
-        permissions: { metadata: "read" },
-        operation: "metadata_only_estate_refresh",
-        expires_at: minted.expires_at,
-        workflow_ref: claim(oidcPayload, "workflow_ref"),
-        workflow_sha: claim(oidcPayload, "workflow_sha"),
-        run_id: runId,
-        token_persisted: false,
-      },
+      p_snapshot_metadata: finalSnapshotMetadata,
+      p_token_metadata: tokenMetadata,
+      p_snapshot_audit_metadata: snapshotAuditMetadata,
+      p_canonical_audit_metadata: canonicalAuditMetadata,
+      p_queue_audit_metadata: queueAuditMetadata,
     });
-    if (tokenReceipt.error) throw new Error(tokenReceipt.error.message || "token_receipt_failed");
-
-    const audit = await admin.from("apex_repo_atlas_audit").insert([
-      {
-        snapshot_id: snapshotId,
-        action: "snapshot_created",
-        outcome: "succeeded",
-        metadata: {
-          source: "github_oidc_estate_refresh",
-          previous_snapshot_id: previousSnapshotId,
-          repository_count: rows.length,
-          original_count: originalCount,
-          fork_count: forkCount,
-          private_count: privateCount,
-          archived_count: archivedCount,
-          inventory_root_sha256: inventoryRoot,
-          delta,
-          token_persisted: false,
-        },
-      },
-      {
-        snapshot_id: snapshotId,
-        action: "canonical_candidates_generated",
-        outcome: "succeeded",
-        metadata: {
-          candidate_count: registryRows.length,
-          verified_carry_forward_count: verifiedCarryForwardCount,
-        },
-      },
-      {
-        snapshot_id: snapshotId,
-        action: "ignition_queue_generated",
-        outcome: "succeeded",
-        metadata: { queue_count: queueRows.length, top_n: 25, prior_statuses_preserved_by_repository_id: true },
-      },
-    ]);
-    if (audit.error) throw new Error(audit.error.message || "atlas_audit_receipt_failed");
+    if (finalized.error || typeof finalized.data !== "string") {
+      const finalMessage = finalized.error?.message || "";
+      if (finalMessage.includes("repo_atlas_refresh_lease_lost")) {
+        throw new Error("repo_atlas_refresh_lease_lost");
+      }
+      throw new Error("repo_atlas_refresh_finalize_failed");
+    }
 
     return json(200, {
       ok: true,
@@ -748,12 +884,20 @@ Deno.serve(async (request: Request) => {
       const cleanup = await admin.from("apex_repo_atlas_snapshots").delete().eq("snapshot_id", snapshotId);
       if (cleanup.error) console.error("[estate-atlas-refresh] snapshot_cleanup_failed");
     }
-    const message = error instanceof Error ? error.message : "estate_atlas_refresh_failed";
-    return json(400, { ok: false, error: message.slice(0, 512) });
+    const failure = safeFailure(error);
+    return json(failure.status, {
+      ok: false,
+      error: failure.code,
+      retryable: failure.retryable,
+    });
   } finally {
     if (refreshClaimId) {
-      const released = await admin.rpc("release_apex_repo_atlas_refresh", { p_claim_id: refreshClaimId });
-      if (released.error || released.data !== true) console.error("[estate-atlas-refresh] lease_release_failed");
+      const released = await admin.rpc("release_apex_repo_atlas_refresh", {
+        p_claim_id: refreshClaimId,
+      });
+      if (released.error || released.data !== true) {
+        console.error("[estate-atlas-refresh] lease_release_failed");
+      }
     }
     privateKey = "";
     appJwt = "";
