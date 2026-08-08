@@ -1,0 +1,24 @@
+name: Verify Public Runner OIDC
+
+on:
+  push:
+    branches: [verify/public-runner-oidc-20260808]
+    paths:
+      - .github/workflows/verify-public-runner-oidc.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact public runner candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: GlacierEQ/public-actions-runner-host
+          ref: 4b3456d0c56061d806ee15d2dc898718b6fde82f
+          persist-credentials: false
+      - name: Run repository-owned verification gate
+        run: bash -euo pipefail scripts/ci/public-action-face-ci.sh
