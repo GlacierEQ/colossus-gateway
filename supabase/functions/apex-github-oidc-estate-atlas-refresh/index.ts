@@ -128,20 +128,29 @@ async function makeAppJwt(appId: number, privateKey: string): Promise<string> {
 }
 
 async function github(path: string, token: string, init: RequestInit = {}) {
-  const response = await fetch(`${GITHUB_API}${path}`, {
-    ...init,
-    signal: init.signal ?? AbortSignal.timeout(15_000),
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${token}`,
-      "x-github-api-version": GITHUB_API_VERSION,
-      "content-type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
-  const payload = await response.json().catch(() => ({}));
+  let response: Response;
+  try {
+    response = await fetch(`${GITHUB_API}${path}`, {
+      ...init,
+      signal: init.signal ?? AbortSignal.timeout(15_000),
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${token}`,
+        "x-github-api-version": GITHUB_API_VERSION,
+        "content-type": "application/json",
+        ...(init.headers || {}),
+      },
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") throw error;
+    throw new Error("github_transport_failed");
+  }
   if (!response.ok) throw new Error(`github_http_${response.status}`);
-  return payload;
+  try {
+    return await response.json();
+  } catch {
+    throw new Error("github_response_invalid_json");
+  }
 }
 
 function safeFailure(error: unknown): { status: number; code: string; retryable: boolean } {
@@ -152,6 +161,20 @@ function safeFailure(error: unknown): { status: number; code: string; retryable:
   }
   if (message.includes("repo_atlas_refresh_lease_lost")) {
     return { status: 409, code: "refresh_lease_lost", retryable: true };
+  }
+  if (message === "repository_inventory_changed_during_scan") {
+    return { status: 409, code: "repository_inventory_changed_during_scan", retryable: true };
+  }
+  if (message === "github_app_binding_rejected" || message === "all_repository_installation_not_verified") {
+    return { status: 409, code: message, retryable: false };
+  }
+  if (
+    message === "github_transport_failed" ||
+    message === "github_response_invalid_json" ||
+    message === "repository_inventory_invalid" ||
+    message === "repository_inventory_count_mismatch"
+  ) {
+    return { status: 502, code: "github_dependency_failed", retryable: true };
   }
   const githubStatus = /^github_http_(\d{3})$/.exec(message);
   if (githubStatus) {
@@ -167,7 +190,6 @@ function safeFailure(error: unknown): { status: number; code: string; retryable:
   }
   if (
     message === "github_app_not_bootstrapped" ||
-    message === "all_repository_installation_not_verified" ||
     message === "repo_atlas_refresh_claim_failed" ||
     message === "private_key_resolution_failed"
   ) {
@@ -341,6 +363,10 @@ function comparable(row: any) {
     family: row.family ?? null,
     lifecycle: row.lifecycle ?? null,
     name_signature: row.name_signature ?? null,
+    ignition_score: Number(row.ignition_score || 0),
+    reasons: Array.isArray(row.metadata?.reasons)
+      ? row.metadata.reasons.map((reason: unknown) => String(reason)).sort()
+      : [],
     html_url: row.metadata?.html_url ?? null,
     has_issues: row.metadata?.has_issues ?? null,
     has_projects: row.metadata?.has_projects ?? null,
@@ -484,13 +510,26 @@ Deno.serve(async (request: Request) => {
       .from("apex_github_bootstrap_sessions")
       .select("*")
       .eq("status", "completed")
+      .eq("owner_login", OWNER)
       .order("installed_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (sessionResult.error || !sessionResult.data) throw new Error("github_app_not_bootstrapped");
     const session = sessionResult.data as any;
-    if (!session.installed_at || session.verification_detail?.installation_scope !== "all") {
-      throw new Error("all_repository_installation_not_verified");
+    const appId = Number(session.app_id);
+    const appSlug = String(session.app_slug || "");
+    if (
+      !session.installed_at ||
+      !session.app_private_key_ref ||
+      !Number.isSafeInteger(appId) ||
+      appId <= 0 ||
+      !appSlug ||
+      session.verification_detail?.installation_scope !== "all" ||
+      String(session.verification_detail?.owner_login || "") !== OWNER ||
+      Number(session.verification_detail?.app_id) !== appId ||
+      String(session.verification_detail?.app_slug || "") !== appSlug
+    ) {
+      throw new Error("github_app_binding_rejected");
     }
     // expires_at bounded the one-time bootstrap capability. After successful completion,
     // the verified GitHub App installation is durable; every refresh is independently
@@ -524,9 +563,22 @@ Deno.serve(async (request: Request) => {
       throw new Error("private_key_resolution_failed");
     }
     privateKey = resolved.data.secret;
-    appJwt = await makeAppJwt(Number(session.app_id), privateKey).finally(() => {
+    appJwt = await makeAppJwt(appId, privateKey).finally(() => {
       privateKey = "";
     });
+
+    const liveInstallation = await github(`/app/installations/${installationId}`, appJwt);
+    if (
+      Number(liveInstallation?.id) !== installationId ||
+      Number(liveInstallation?.app_id) !== appId ||
+      String(liveInstallation?.account?.login || "") !== OWNER ||
+      String(liveInstallation?.account?.id || "") !== OWNER_ID
+    ) {
+      throw new Error("github_app_binding_rejected");
+    }
+    if (liveInstallation?.repository_selection !== "all") {
+      throw new Error("all_repository_installation_not_verified");
+    }
 
     const minted = await github(`/app/installations/${installationId}/access_tokens`, appJwt, {
       method: "POST",
@@ -540,6 +592,8 @@ Deno.serve(async (request: Request) => {
     installationToken = minted.token;
 
     const repositories: any[] = [];
+    let expectedRepositoryCount: number | null = null;
+    let inventoryComplete = false;
     try {
       for (let page = 1; page <= MAX_REPOSITORY_PAGES; page += 1) {
         await renewRefreshLease(admin, refreshClaimId);
@@ -547,15 +601,35 @@ Deno.serve(async (request: Request) => {
           `/installation/repositories?per_page=100&page=${page}`,
           installationToken,
         );
-        const items = Array.isArray(payload?.repositories) ? payload.repositories : [];
+        const totalCount = Number(payload?.total_count);
+        if (
+          !payload ||
+          typeof payload !== "object" ||
+          !Array.isArray(payload.repositories) ||
+          !Number.isSafeInteger(totalCount) ||
+          totalCount < 0
+        ) {
+          throw new Error("repository_inventory_invalid");
+        }
+        if (expectedRepositoryCount === null) expectedRepositoryCount = totalCount;
+        else if (expectedRepositoryCount !== totalCount) {
+          throw new Error("repository_inventory_changed_during_scan");
+        }
+        const items = payload.repositories;
         repositories.push(...items);
-        if (items.length < 100) break;
+        if (items.length < 100) {
+          inventoryComplete = true;
+          break;
+        }
         if (page === MAX_REPOSITORY_PAGES) {
           throw new Error("repository_inventory_exceeds_page_limit");
         }
       }
     } finally {
       installationToken = "";
+    }
+    if (!inventoryComplete || expectedRepositoryCount === null) {
+      throw new Error("repository_inventory_invalid");
     }
 
     await renewRefreshLease(admin, refreshClaimId);
@@ -571,6 +645,9 @@ Deno.serve(async (request: Request) => {
           .map((repo) => [Number(repo.id), repo]),
       ).values(),
     ].sort((left: any, right: any) => Number(left.id) - Number(right.id));
+    if (deduped.length !== expectedRepositoryCount) {
+      throw new Error("repository_inventory_count_mismatch");
+    }
 
     const previousSnapshot = await latestFinalizedSnapshot(
       admin,
@@ -669,21 +746,41 @@ Deno.serve(async (request: Request) => {
       if (repositoryId) previousStatusById.set(repositoryId, String(queueRow.status));
     }
 
-    const candidates = rows
+    const rankedCandidates = rows
       .filter((row: any) => !row.is_archived && row.lifecycle !== "backup")
       .sort(
         (left: any, right: any) =>
           right.ignition_score - left.ignition_score ||
           String(right.pushed_at || "").localeCompare(String(left.pushed_at || "")),
-      )
-      .slice(0, 25);
+      );
+    const primaryCandidates = rankedCandidates.slice(0, 25);
+    const selectedIds = new Set(primaryCandidates.map((row: any) => Number(row.repository_id)));
+    const changedCompletedCandidates = rows
+      .filter((row: any) => {
+        const repositoryId = Number(row.repository_id);
+        return (
+          !selectedIds.has(repositoryId) &&
+          previousStatusById.get(repositoryId) === "completed" &&
+          changedIdSet.has(repositoryId)
+        );
+      })
+      .sort(
+        (left: any, right: any) =>
+          right.ignition_score - left.ignition_score ||
+          Number(left.repository_id) - Number(right.repository_id),
+      );
+    const candidates = [...primaryCandidates, ...changedCompletedCandidates];
     const queueRows = candidates.map((row: any, index: number) => {
       const repositoryId = Number(row.repository_id);
       const priorStatus = previousStatusById.get(repositoryId);
       let status = priorStatus || "queued";
       if (!QUEUE_STATUSES.has(status)) status = "queued";
-      if (status === "completed" && changedIdSet.has(repositoryId)) status = "queued";
       const reasons = [...(Array.isArray(row.metadata?.reasons) ? row.metadata.reasons : [])];
+      if (status === "inspecting") {
+        status = "queued";
+        reasons.push("inspection_claim_not_carried_across_snapshot");
+      }
+      if (status === "completed" && changedIdSet.has(repositoryId)) status = "queued";
       if (priorStatus === "completed" && status === "queued") {
         reasons.push("repository_changed_since_completion");
       }
@@ -709,12 +806,16 @@ Deno.serve(async (request: Request) => {
       members.push(row);
       groups.set(row.name_signature, members);
     }
-    const previousVerified = new Map<string, any>(
-      previousRegistry
-        .filter((row: any) => row.status === "verified" && row.confidence === "verified")
-        .map((row: any) => [String(row.name_signature), row]),
-    );
-    const currentNames = new Set(rows.map((row: any) => row.full_name));
+    const previousVerified = new Map<string, { registry: any; repositoryId: number }>();
+    for (const registryRow of previousRegistry) {
+      if (registryRow.status !== "verified" || registryRow.confidence !== "verified") continue;
+      const repositoryId = previousIdByFullName.get(String(registryRow.candidate_canonical));
+      if (!repositoryId) continue;
+      previousVerified.set(String(registryRow.name_signature), {
+        registry: registryRow,
+        repositoryId,
+      });
+    }
     const registryRows: any[] = [];
     let verifiedCarryForwardCount = 0;
     for (const [nameSignature, members] of groups) {
@@ -725,22 +826,28 @@ Deno.serve(async (request: Request) => {
           String(right.pushed_at || "").localeCompare(String(left.pushed_at || "")),
       );
       const verified = previousVerified.get(nameSignature);
-      if (verified && currentNames.has(String(verified.candidate_canonical))) {
+      const carriedCandidate = verified
+        ? ordered.find(
+            (member: any) => Number(member.repository_id) === Number(verified.repositoryId),
+          )
+        : null;
+      if (verified && carriedCandidate) {
         verifiedCarryForwardCount += 1;
         registryRows.push({
           snapshot_id: snapshotId,
           name_signature: nameSignature,
-          candidate_canonical: verified.candidate_canonical,
+          candidate_canonical: carriedCandidate.full_name,
           members: ordered.map(memberSummary),
           member_count: ordered.length,
           status: "verified",
           confidence: "verified",
           rationale: {
-            ...(verified.rationale && typeof verified.rationale === "object"
-              ? verified.rationale
+            ...(verified.registry.rationale && typeof verified.registry.rationale === "object"
+              ? verified.registry.rationale
               : {}),
             carried_from_snapshot: previousSnapshotId,
-            carry_forward_basis: "verified_direct_evidence_and_candidate_still_present",
+            carry_forward_repository_id: verified.repositoryId,
+            carry_forward_basis: "verified_direct_evidence_and_stable_repository_id_present",
           },
         });
       } else {
@@ -787,12 +894,16 @@ Deno.serve(async (request: Request) => {
 
     const finalSnapshotMetadata = {
       owner: OWNER,
+      installation_id: installationId,
+      app_id: appId,
+      app_slug: appSlug,
       installation_scope: "all",
       scan_mode: "metadata_only",
       refresh_status: "refreshed",
       previous_snapshot_id: previousSnapshotId,
       refresh_claim_id: refreshClaimId,
       inventory_root_sha256: inventoryRoot,
+      inventory_expected_count: expectedRepositoryCount,
       inventory_token_permissions: { metadata: "read" },
       inventory_token_persisted: false,
       github_content_fetch: false,
@@ -833,6 +944,8 @@ Deno.serve(async (request: Request) => {
     const queueAuditMetadata = {
       queue_count: queueRows.length,
       top_n: 25,
+      changed_completed_requeued_outside_top_n: changedCompletedCandidates.length,
+      transient_inspecting_reset_to_queued: true,
       prior_statuses_preserved_by_repository_id: true,
     };
 
