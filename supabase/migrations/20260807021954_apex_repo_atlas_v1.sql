@@ -1,19 +1,11 @@
 create table if not exists public.apex_repo_atlas_snapshots (
   snapshot_id uuid primary key default gen_random_uuid(),
   installation_id bigint not null,
-  seed_bootstrap_ref text,
   repository_count integer not null check (repository_count >= 0),
   source text not null default 'github_app_installation',
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
-
-alter table public.apex_repo_atlas_snapshots
-  add column if not exists seed_bootstrap_ref text;
-
-create unique index if not exists apex_repo_atlas_snapshots_seed_bootstrap_ref_uidx
-  on public.apex_repo_atlas_snapshots(seed_bootstrap_ref)
-  where seed_bootstrap_ref is not null;
 
 create table if not exists public.apex_repo_atlas_repositories (
   snapshot_id uuid not null references public.apex_repo_atlas_snapshots(snapshot_id) on delete cascade,
@@ -52,13 +44,11 @@ create table if not exists public.apex_repo_ignition_queue (
   score integer not null,
   family text not null,
   reasons jsonb not null default '[]'::jsonb,
-  status text not null default 'queued' check (status in ('queued','inspecting','ready','blocked','completed','superseded','reference','quarantine')),
+  status text not null default 'queued' check (status in ('queued','inspecting','ready','blocked','completed','superseded')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(snapshot_id, full_name)
 );
-
-create index if not exists apex_repo_ignition_queue_status_idx on public.apex_repo_ignition_queue(status, updated_at desc);
 
 alter table public.apex_repo_atlas_snapshots enable row level security;
 alter table public.apex_repo_atlas_repositories enable row level security;
