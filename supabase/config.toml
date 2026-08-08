@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.apex-github-repo-atlas-seed]
 verify_jwt = false
+
+[functions.apex-github-oidc-estate-atlas-refresh]
+verify_jwt = false
