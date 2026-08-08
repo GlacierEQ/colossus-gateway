@@ -75,7 +75,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_released boolean;
+  v_released integer;
 begin
   update public.apex_github_bootstrap_sessions
   set verification_claim_id = null,
@@ -86,7 +86,7 @@ begin
     and verification_claim_id = p_claim_id;
 
   get diagnostics v_released = row_count;
-  return v_released;
+  return v_released = 1;
 end;
 $$;
 
