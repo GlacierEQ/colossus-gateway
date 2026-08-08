@@ -132,7 +132,10 @@ Deno.serve(async (request: Request) => {
   try {
     const { data: session, error: sessionError } = await admin.from("apex_github_bootstrap_sessions").select("*").eq("state_hash", stateHash).single();
     if (sessionError || !session) throw new Error("bootstrap_session_not_found");
-    if (session.status === "completed") return json(200, { ok: true, status: "completed", bootstrap_ref: session.bootstrap_ref });
+    if (session.status === "completed") {
+      if (session.verification_detail?.installation_scope === "all") return json(200, { ok: true, status: "completed", bootstrap_ref: session.bootstrap_ref });
+      throw new Error("bootstrap_session_completed_without_all_repository_verification");
+    }
     if (session.status !== "registered") throw new Error(`bootstrap_session_not_resumable:${session.status}`);
     if (new Date(session.expires_at).getTime() <= Date.now()) throw new Error("bootstrap_session_expired");
     if (!session.app_private_key_ref || !session.app_id) throw new Error("bootstrap_app_identity_missing");
