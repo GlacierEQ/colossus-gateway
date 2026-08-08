@@ -5,6 +5,7 @@ import { importPKCS8, SignJWT } from "npm:jose@6";
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
 const OWNER = "GlacierEQ";
+const MAX_INSTALLATION_PAGES = 100;
 const ACTOR = "github-bootstrap-resume-v2";
 
 const jsonHeaders = {
@@ -95,6 +96,18 @@ async function github(path: string, token: string, init: RequestInit = {}) {
   return payload;
 }
 
+async function listAppInstallations(token: string): Promise<any[]> {
+  const installations: any[] = [];
+  for (let page = 1; page <= MAX_INSTALLATION_PAGES; page += 1) {
+    const payload = await github(`/app/installations?per_page=100&page=${page}`, token);
+    if (!Array.isArray(payload)) throw new Error("github_installations_invalid");
+    installations.push(...payload);
+    if (payload.length < 100) return installations;
+    if (page === MAX_INSTALLATION_PAGES) throw new Error("github_installations_exceed_page_limit");
+  }
+  throw new Error("github_installations_exceed_page_limit");
+}
+
 function uniqueStrings(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((v) => typeof v === "string").map((v) => v.trim()).filter(Boolean))].sort();
@@ -136,8 +149,7 @@ Deno.serve(async (request: Request) => {
     jwt = signed.jwt;
     privateKey = "";
 
-    const installations = await github("/app/installations?per_page=100", jwt);
-    if (!Array.isArray(installations)) throw new Error("github_installations_invalid");
+    const installations = await listAppInstallations(jwt);
     const matches = installations.filter((item) => Number(item?.app_id) === Number(session.app_id) && String(item?.account?.login || "") === OWNER);
     if (matches.length !== 1) throw new Error(matches.length ? "github_installation_ambiguous" : "github_installation_not_found");
     const installation = matches[0];
