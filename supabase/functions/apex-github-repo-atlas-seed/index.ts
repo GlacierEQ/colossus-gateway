@@ -49,12 +49,14 @@ Deno.serve(async(request:Request)=>{
     if(String(session.owner_login)!==OWNER||session.verification_detail?.installation_scope!=="all")throw new Error("all_repository_installation_not_verified");
     const resolved=await admin.rpc("resolve_apex_keymaster_secret_for_broker",{p_secret_ref:session.app_private_key_ref,p_provider:"github",p_request_id:`atlas-${crypto.randomUUID()}`.slice(0,256),p_actor:ACTOR,p_operation:"metadata_only_repository_atlas"});
     if(resolved.error||typeof resolved.data?.secret!=="string")throw new Error(resolved.error?.message||"private_key_resolution_failed");
-    privateKey=resolved.data.secret;appJwt=await makeJwt(Number(session.app_id),privateKey);privateKey="";
-    const minted=await github(`/app/installations/${Number(session.installation_id)}/access_tokens`,appJwt,{method:"POST",body:JSON.stringify({permissions:{contents:"read"}})});
+    privateKey=resolved.data.secret;
+    appJwt=await makeJwt(Number(session.app_id),privateKey).finally(()=>{privateKey="";});
+    const minted=await github(`/app/installations/${Number(session.installation_id)}/access_tokens`,appJwt,{method:"POST",body:JSON.stringify({permissions:{contents:"read"}})}).finally(()=>{appJwt="";});
     if(typeof minted?.token!=="string")throw new Error("inventory_token_invalid");installToken=minted.token;
     const repos:any[]=[];
-    for(let page=1;page<=MAX_PAGES;page+=1){const payload=await github(`/installation/repositories?per_page=100&page=${page}`,installToken);const items=Array.isArray(payload?.repositories)?payload.repositories:[];repos.push(...items);if(items.length<100)break;if(page===MAX_PAGES)throw new Error("repository_inventory_exceeds_page_limit");}
-    installToken="";
+    try{
+      for(let page=1;page<=MAX_PAGES;page+=1){const payload=await github(`/installation/repositories?per_page=100&page=${page}`,installToken);const items=Array.isArray(payload?.repositories)?payload.repositories:[];repos.push(...items);if(items.length<100)break;if(page===MAX_PAGES)throw new Error("repository_inventory_exceeds_page_limit");}
+    }finally{installToken="";}
     const dedup=[...new Map(repos.filter((r)=>Number.isSafeInteger(Number(r?.id))&&typeof r?.full_name==="string").map((r)=>[Number(r.id),r])).values()];
     const snap=await admin.from("apex_repo_atlas_snapshots").insert({installation_id:Number(session.installation_id),repository_count:dedup.length,metadata:{owner:OWNER,installation_scope:"all",scan_mode:"metadata_only",github_content_fetch:false,inventory_token_permissions:{contents:"read"},inventory_token_persisted:false}}).select("snapshot_id").single();
     if(snap.error||!snap.data?.snapshot_id)throw new Error(snap.error?.message||"snapshot_create_failed");snapshotId=snap.data.snapshot_id;
