@@ -25,6 +25,16 @@ const HEADERS = {
   "x-robots-tag": "noindex",
   "referrer-policy": "no-referrer",
 };
+const QUEUE_STATUSES = new Set([
+  "queued",
+  "inspecting",
+  "ready",
+  "blocked",
+  "completed",
+  "superseded",
+  "reference",
+  "quarantine",
+]);
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: HEADERS });
@@ -36,7 +46,7 @@ function claim(payload: Record<string, unknown>, key: string): string {
 }
 
 function concatBytes(...arrays: Uint8Array[]): Uint8Array {
-  const output = new Uint8Array(arrays.reduce((n, a) => n + a.length, 0));
+  const output = new Uint8Array(arrays.reduce((n, array) => n + array.length, 0));
   let offset = 0;
   for (const array of arrays) {
     output.set(array, offset);
@@ -58,13 +68,13 @@ function derLength(length: number): Uint8Array {
 
 function base64ToBytes(value: string): Uint8Array {
   const binary = atob(value);
-  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 function bytesToBase64(value: Uint8Array): string {
   let binary = "";
-  for (let i = 0; i < value.length; i += 0x8000) {
-    binary += String.fromCharCode(...value.subarray(i, i + 0x8000));
+  for (let index = 0; index < value.length; index += 0x8000) {
+    binary += String.fromCharCode(...value.subarray(index, index + 0x8000));
   }
   return btoa(binary);
 }
@@ -315,6 +325,7 @@ Deno.serve(async (request: Request) => {
     });
     oidcPayload = verified.payload as Record<string, unknown>;
   } catch {
+    console.warn("[estate-atlas-refresh] oidc_verification_rejected");
     return json(401, { ok: false, error: "oidc_rejected" });
   }
 
@@ -329,6 +340,7 @@ Deno.serve(async (request: Request) => {
     claim(oidcPayload, "workflow_ref") !== WORKFLOW_REF ||
     !ALLOWED_EVENTS.has(eventName)
   ) {
+    console.warn("[estate-atlas-refresh] oidc_identity_rejected");
     return json(401, { ok: false, error: "oidc_identity_rejected" });
   }
 
@@ -341,6 +353,7 @@ Deno.serve(async (request: Request) => {
   let appJwt = "";
   let installationToken = "";
   let snapshotId = "";
+  let refreshClaimId = "";
   try {
     const sessionResult = await admin
       .from("apex_github_bootstrap_sessions")
@@ -351,9 +364,20 @@ Deno.serve(async (request: Request) => {
       .maybeSingle();
     if (sessionResult.error || !sessionResult.data) throw new Error("github_app_not_bootstrapped");
     const session = sessionResult.data as any;
-    if (session.verification_detail?.installation_scope !== "all") throw new Error("all_repository_installation_not_verified");
+    if (!session.installed_at || session.verification_detail?.installation_scope !== "all") {
+      throw new Error("all_repository_installation_not_verified");
+    }
+    // expires_at bounded the one-time bootstrap capability. After successful completion,
+    // the verified GitHub App installation is durable; every refresh is independently
+    // authorized by a fresh, tightly bound GitHub Actions OIDC assertion above.
     const installationId = Number(session.installation_id);
     if (!Number.isSafeInteger(installationId) || installationId <= 0) throw new Error("invalid_installation_id");
+
+    const refreshClaim = await admin.rpc("claim_apex_repo_atlas_refresh");
+    if (refreshClaim.error || typeof refreshClaim.data !== "string") {
+      throw new Error(refreshClaim.error?.message || "repo_atlas_refresh_claim_failed");
+    }
+    refreshClaimId = refreshClaim.data;
 
     const runId = claim(oidcPayload, "run_id") || "unknown";
     const requestId = `oidc-estate-${runId}-${crypto.randomUUID()}`.slice(0, 256);
@@ -364,7 +388,9 @@ Deno.serve(async (request: Request) => {
       p_actor: `${ACTOR}:${runId}`,
       p_operation: "metadata_only_estate_refresh",
     });
-    if (resolved.error || typeof resolved.data?.secret !== "string") throw new Error(resolved.error?.message || "private_key_resolution_failed");
+    if (resolved.error || typeof resolved.data?.secret !== "string") {
+      throw new Error(resolved.error?.message || "private_key_resolution_failed");
+    }
     privateKey = resolved.data.secret;
     appJwt = await makeAppJwt(Number(session.app_id), privateKey).finally(() => {
       privateKey = "";
@@ -376,7 +402,9 @@ Deno.serve(async (request: Request) => {
     }).finally(() => {
       appJwt = "";
     });
-    if (typeof minted?.token !== "string" || typeof minted?.expires_at !== "string") throw new Error("inventory_token_invalid");
+    if (typeof minted?.token !== "string" || typeof minted?.expires_at !== "string") {
+      throw new Error("inventory_token_invalid");
+    }
     installationToken = minted.token;
 
     const repositories: any[] = [];
@@ -396,7 +424,7 @@ Deno.serve(async (request: Request) => {
       repositories
         .filter((repo) => Number.isSafeInteger(Number(repo?.id)) && Number(repo.id) > 0 && typeof repo?.full_name === "string")
         .map((repo) => [Number(repo.id), repo]),
-    ).values()].sort((a: any, b: any) => Number(a.id) - Number(b.id));
+    ).values()].sort((left: any, right: any) => Number(left.id) - Number(right.id));
 
     const previousSnapshotResult = await admin
       .from("apex_repo_atlas_snapshots")
@@ -404,11 +432,21 @@ Deno.serve(async (request: Request) => {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (previousSnapshotResult.error) throw new Error(previousSnapshotResult.error.message || "previous_snapshot_lookup_failed");
-    const previousSnapshotId = typeof previousSnapshotResult.data?.snapshot_id === "string" ? previousSnapshotResult.data.snapshot_id : null;
-    const previousRows = previousSnapshotId ? await fetchSnapshotRows(admin, "apex_repo_atlas_repositories", previousSnapshotId) : [];
-    const previousQueue = previousSnapshotId ? await fetchSnapshotRows(admin, "apex_repo_ignition_queue", previousSnapshotId) : [];
-    const previousRegistry = previousSnapshotId ? await fetchSnapshotRows(admin, "apex_repo_canonical_registry", previousSnapshotId) : [];
+    if (previousSnapshotResult.error) {
+      throw new Error(previousSnapshotResult.error.message || "previous_snapshot_lookup_failed");
+    }
+    const previousSnapshotId = typeof previousSnapshotResult.data?.snapshot_id === "string"
+      ? previousSnapshotResult.data.snapshot_id
+      : null;
+    const previousRows = previousSnapshotId
+      ? await fetchSnapshotRows(admin, "apex_repo_atlas_repositories", previousSnapshotId)
+      : [];
+    const previousQueue = previousSnapshotId
+      ? await fetchSnapshotRows(admin, "apex_repo_ignition_queue", previousSnapshotId)
+      : [];
+    const previousRegistry = previousSnapshotId
+      ? await fetchSnapshotRows(admin, "apex_repo_canonical_registry", previousSnapshotId)
+      : [];
 
     const claimed = await admin
       .from("apex_repo_atlas_snapshots")
@@ -416,11 +454,18 @@ Deno.serve(async (request: Request) => {
         installation_id: installationId,
         repository_count: deduped.length,
         source: "github_oidc_estate_refresh",
-        metadata: { refresh_status: "building", previous_snapshot_id: previousSnapshotId, token_persisted: false },
+        metadata: {
+          refresh_status: "building",
+          previous_snapshot_id: previousSnapshotId,
+          refresh_claim_id: refreshClaimId,
+          token_persisted: false,
+        },
       })
       .select("snapshot_id")
       .single();
-    if (claimed.error || typeof claimed.data?.snapshot_id !== "string") throw new Error(claimed.error?.message || "snapshot_create_failed");
+    if (claimed.error || typeof claimed.data?.snapshot_id !== "string") {
+      throw new Error(claimed.error?.message || "snapshot_create_failed");
+    }
     snapshotId = claimed.data.snapshot_id;
 
     const rows = deduped.map((repo: any) => repoRow(snapshotId, repo));
@@ -442,7 +487,7 @@ Deno.serve(async (request: Request) => {
 
     const inventoryPayload = rows
       .map((row: any) => ({ repository_id: row.repository_id, ...comparable(row) }))
-      .sort((a: any, b: any) => a.repository_id - b.repository_id);
+      .sort((left: any, right: any) => left.repository_id - right.repository_id);
     const inventoryRoot = await sha256Hex(JSON.stringify(inventoryPayload));
 
     for (let index = 0; index < rows.length; index += 100) {
@@ -450,18 +495,30 @@ Deno.serve(async (request: Request) => {
       if (inserted.error) throw new Error(inserted.error.message || "atlas_repository_insert_failed");
     }
 
-    const previousStatus = new Map(previousQueue.map((row: any) => [String(row.full_name), String(row.status)]));
+    const previousIdByFullName = new Map(
+      previousRows.map((row: any) => [String(row.full_name), Number(row.repository_id)]),
+    );
+    const previousStatusById = new Map<number, string>();
+    for (const queueRow of previousQueue) {
+      const repositoryId = previousIdByFullName.get(String(queueRow.full_name));
+      if (repositoryId) previousStatusById.set(repositoryId, String(queueRow.status));
+    }
+
     const candidates = rows
       .filter((row: any) => !row.is_archived && row.lifecycle !== "backup")
-      .sort((a: any, b: any) => b.ignition_score - a.ignition_score || String(b.pushed_at || "").localeCompare(String(a.pushed_at || "")))
+      .sort((left: any, right: any) =>
+        right.ignition_score - left.ignition_score ||
+        String(right.pushed_at || "").localeCompare(String(left.pushed_at || ""))
+      )
       .slice(0, 25);
-    const allowedStatuses = new Set(["queued", "inspecting", "ready", "blocked", "completed", "superseded", "reference", "quarantine"]);
     const queueRows = candidates.map((row: any, index: number) => {
-      let status = previousStatus.get(row.full_name) || "queued";
-      if (!allowedStatuses.has(status)) status = "queued";
-      if (status === "completed" && changedIdSet.has(Number(row.repository_id))) status = "queued";
+      const repositoryId = Number(row.repository_id);
+      const priorStatus = previousStatusById.get(repositoryId);
+      let status = priorStatus || "queued";
+      if (!QUEUE_STATUSES.has(status)) status = "queued";
+      if (status === "completed" && changedIdSet.has(repositoryId)) status = "queued";
       const reasons = [...(Array.isArray(row.metadata?.reasons) ? row.metadata.reasons : [])];
-      if (previousStatus.get(row.full_name) === "completed" && status === "queued") reasons.push("repository_changed_since_completion");
+      if (priorStatus === "completed" && status === "queued") reasons.push("repository_changed_since_completion");
       return {
         snapshot_id: snapshotId,
         full_name: row.full_name,
@@ -493,7 +550,10 @@ Deno.serve(async (request: Request) => {
     let verifiedCarryForwardCount = 0;
     for (const [nameSignature, members] of groups) {
       if (!nameSignature || members.length <= 1) continue;
-      const ordered = [...members].sort((a: any, b: any) => b.ignition_score - a.ignition_score || String(b.pushed_at || "").localeCompare(String(a.pushed_at || "")));
+      const ordered = [...members].sort((left: any, right: any) =>
+        right.ignition_score - left.ignition_score ||
+        String(right.pushed_at || "").localeCompare(String(left.pushed_at || ""))
+      );
       const verified = previousVerified.get(nameSignature);
       if (verified && currentNames.has(String(verified.candidate_canonical))) {
         verifiedCarryForwardCount += 1;
@@ -524,10 +584,10 @@ Deno.serve(async (request: Request) => {
         });
       }
     }
-    if (registryRows.length) {
-      for (let index = 0; index < registryRows.length; index += 100) {
-        const insertedRegistry = await admin.from("apex_repo_canonical_registry").insert(registryRows.slice(index, index + 100));
-        if (insertedRegistry.error) throw new Error(insertedRegistry.error.message || "canonical_registry_insert_failed");
+    for (let index = 0; index < registryRows.length; index += 100) {
+      const insertedRegistry = await admin.from("apex_repo_canonical_registry").insert(registryRows.slice(index, index + 100));
+      if (insertedRegistry.error) {
+        throw new Error(insertedRegistry.error.message || "canonical_registry_insert_failed");
       }
     }
 
@@ -561,6 +621,7 @@ Deno.serve(async (request: Request) => {
           scan_mode: "metadata_only",
           refresh_status: "refreshed",
           previous_snapshot_id: previousSnapshotId,
+          refresh_claim_id: refreshClaimId,
           inventory_root_sha256: inventoryRoot,
           inventory_token_permissions: { metadata: "read" },
           inventory_token_persisted: false,
@@ -576,6 +637,25 @@ Deno.serve(async (request: Request) => {
       })
       .eq("snapshot_id", snapshotId);
     if (finalized.error) throw new Error(finalized.error.message || "snapshot_finalize_failed");
+
+    const tokenReceipt = await admin.rpc("apex_github_bootstrap_write_receipt", {
+      p_bootstrap_ref: session.bootstrap_ref,
+      p_request_id: requestId,
+      p_action: "token_minted",
+      p_actor: `${ACTOR}:${runId}`,
+      p_outcome: "succeeded",
+      p_metadata: {
+        credential_path: "github_oidc_estate_refresh",
+        permissions: { metadata: "read" },
+        operation: "metadata_only_estate_refresh",
+        expires_at: minted.expires_at,
+        workflow_ref: claim(oidcPayload, "workflow_ref"),
+        workflow_sha: claim(oidcPayload, "workflow_sha"),
+        run_id: runId,
+        token_persisted: false,
+      },
+    });
+    if (tokenReceipt.error) throw new Error(tokenReceipt.error.message || "token_receipt_failed");
 
     const audit = await admin.from("apex_repo_atlas_audit").insert([
       {
@@ -599,35 +679,19 @@ Deno.serve(async (request: Request) => {
         snapshot_id: snapshotId,
         action: "canonical_candidates_generated",
         outcome: "succeeded",
-        metadata: { candidate_count: registryRows.length, verified_carry_forward_count: verifiedCarryForwardCount },
+        metadata: {
+          candidate_count: registryRows.length,
+          verified_carry_forward_count: verifiedCarryForwardCount,
+        },
       },
       {
         snapshot_id: snapshotId,
         action: "ignition_queue_generated",
         outcome: "succeeded",
-        metadata: { queue_count: queueRows.length, top_n: 25, prior_statuses_preserved: true },
+        metadata: { queue_count: queueRows.length, top_n: 25, prior_statuses_preserved_by_repository_id: true },
       },
     ]);
     if (audit.error) throw new Error(audit.error.message || "atlas_audit_receipt_failed");
-
-    const tokenReceipt = await admin.rpc("apex_github_bootstrap_write_receipt", {
-      p_bootstrap_ref: session.bootstrap_ref,
-      p_request_id: requestId,
-      p_action: "token_minted",
-      p_actor: `${ACTOR}:${runId}`,
-      p_outcome: "succeeded",
-      p_metadata: {
-        credential_path: "github_oidc_estate_refresh",
-        permissions: { metadata: "read" },
-        operation: "metadata_only_estate_refresh",
-        expires_at: minted.expires_at,
-        workflow_ref: claim(oidcPayload, "workflow_ref"),
-        workflow_sha: claim(oidcPayload, "workflow_sha"),
-        run_id: runId,
-        token_persisted: false,
-      },
-    });
-    if (tokenReceipt.error) throw new Error(tokenReceipt.error.message || "token_receipt_failed");
 
     return json(200, {
       ok: true,
@@ -652,13 +716,21 @@ Deno.serve(async (request: Request) => {
       token_persisted: false,
     });
   } catch (error) {
-    if (snapshotId) await admin.from("apex_repo_atlas_snapshots").delete().eq("snapshot_id", snapshotId);
+    if (snapshotId) {
+      const cleanup = await admin.from("apex_repo_atlas_snapshots").delete().eq("snapshot_id", snapshotId);
+      if (cleanup.error) console.error("[estate-atlas-refresh] snapshot_cleanup_failed");
+    }
     const message = error instanceof Error ? error.message : "estate_atlas_refresh_failed";
     return json(400, { ok: false, error: message.slice(0, 512) });
   } finally {
+    if (refreshClaimId) {
+      const released = await admin.rpc("release_apex_repo_atlas_refresh", { p_claim_id: refreshClaimId });
+      if (released.error || released.data !== true) console.error("[estate-atlas-refresh] lease_release_failed");
+    }
     privateKey = "";
     appJwt = "";
     installationToken = "";
     snapshotId = "";
+    refreshClaimId = "";
   }
 });
