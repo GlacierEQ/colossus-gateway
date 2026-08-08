@@ -128,6 +128,7 @@ Deno.serve(async (request: Request) => {
   let privateKey = "";
   let jwt = "";
   let token = "";
+  let claimId = "";
   try {
     const { data: session, error: sessionError } = await admin.from("apex_github_bootstrap_sessions").select("*").eq("state_hash", stateHash).single();
     if (sessionError || !session) throw new Error("bootstrap_session_not_found");
@@ -136,6 +137,10 @@ Deno.serve(async (request: Request) => {
     if (new Date(session.expires_at).getTime() <= Date.now()) throw new Error("bootstrap_session_expired");
     if (!session.app_private_key_ref || !session.app_id) throw new Error("bootstrap_app_identity_missing");
     if (String(session.owner_login) !== OWNER) throw new Error("bootstrap_owner_rejected");
+
+    const claimed = await admin.rpc("claim_apex_github_bootstrap_verification", { p_state_hash: stateHash });
+    if (claimed.error || typeof claimed.data?.claim_id !== "string") throw new Error(claimed.error?.message || "bootstrap_verification_claim_failed");
+    claimId = claimed.data.claim_id;
 
     const resolved = await admin.rpc("resolve_apex_keymaster_secret_for_broker", {
       p_secret_ref: session.app_private_key_ref,
@@ -208,8 +213,9 @@ Deno.serve(async (request: Request) => {
     });
     if (receipt.error) throw new Error(receipt.error.message || "verification_receipt_failed");
 
-    const completed = await admin.rpc("complete_apex_github_bootstrap_session", {
+    const completed = await admin.rpc("complete_claimed_apex_github_bootstrap_session", {
       p_state_hash: stateHash,
+      p_claim_id: claimId,
       p_installation_id: installationId,
       p_observed_repositories: anchors,
       p_verification_detail: {
@@ -228,14 +234,20 @@ Deno.serve(async (request: Request) => {
       p_actor: ACTOR,
     });
     if (completed.error) throw new Error(completed.error.message || "bootstrap_completion_failed");
+    claimId = "";
 
     return json(200, { ok: true, status: "completed", bootstrap_ref: session.bootstrap_ref, installation_id: installationId, installation_scope: "all", verified_anchor_repositories: anchors, live_read_checks: readChecks.length, token_persisted: false });
   } catch (error) {
+    if (claimId) {
+      await admin.rpc("release_apex_github_bootstrap_verification", { p_state_hash: stateHash, p_claim_id: claimId });
+      claimId = "";
+    }
     const message = error instanceof Error ? error.message : "bootstrap_resume_failed";
     return json(400, { ok: false, error: message.slice(0, 512) });
   } finally {
     privateKey = "";
     jwt = "";
     token = "";
+    claimId = "";
   }
 });
