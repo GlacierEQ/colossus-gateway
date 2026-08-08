@@ -23,10 +23,7 @@ create table if not exists public.apex_repo_atlas_audit (
 );
 
 create or replace function public.apex_repo_atlas_audit_append_only()
-returns trigger
-language plpgsql
-set search_path = public
-as $$
+returns trigger language plpgsql as $$
 begin
   raise exception 'apex_repo_atlas_audit is append-only';
 end;
@@ -42,7 +39,4 @@ alter table public.apex_repo_atlas_audit enable row level security;
 revoke all on public.apex_repo_canonical_registry from anon, authenticated;
 revoke all on public.apex_repo_atlas_audit from anon, authenticated;
 grant all on public.apex_repo_canonical_registry to service_role;
-revoke all on public.apex_repo_atlas_audit from service_role;
-grant select, insert on public.apex_repo_atlas_audit to service_role;
-revoke all on function public.apex_repo_atlas_audit_append_only() from public, anon, authenticated;
-grant execute on function public.apex_repo_atlas_audit_append_only() to service_role;
+grant all on public.apex_repo_atlas_audit to service_role;
