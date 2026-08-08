@@ -50,14 +50,14 @@ Deno.serve(async(request:Request)=>{
 
     const existing=await admin.from("apex_repo_atlas_snapshots").select("snapshot_id,repository_count,created_at,metadata").eq("installation_id",Number(session.installation_id)).order("created_at",{ascending:false}).limit(1).maybeSingle();
     if(existing.error)throw new Error(existing.error.message||"atlas_existing_snapshot_lookup_failed");
-    if(existing.data?.snapshot_id)return json(200,{ok:true,status:existing.data.metadata?.seed_status==="seeding"?"seed_in_progress":"already_seeded",snapshot_id:existing.data.snapshot_id,repository_count:existing.data.repository_count,created_at:existing.data.created_at,scan_mode:"metadata_only",github_writes:0});
+    if(existing.data?.snapshot_id){const inProgress=existing.data.metadata?.seed_status==="seeding";return json(inProgress?409:200,{ok:!inProgress,status:inProgress?"seed_in_progress":"already_seeded",snapshot_id:existing.data.snapshot_id,repository_count:existing.data.repository_count,created_at:existing.data.created_at,scan_mode:"metadata_only",github_writes:0});}
 
     const claimed=await admin.from("apex_repo_atlas_snapshots").insert({installation_id:Number(session.installation_id),seed_bootstrap_ref:String(session.bootstrap_ref),repository_count:0,metadata:{owner:OWNER,installation_scope:"all",scan_mode:"metadata_only",seed_status:"seeding",github_content_fetch:false,inventory_token_persisted:false}}).select("snapshot_id").single();
     if(claimed.error){
       if(claimed.error.code==="23505"){
         const raced=await admin.from("apex_repo_atlas_snapshots").select("snapshot_id,repository_count,created_at,metadata").eq("seed_bootstrap_ref",String(session.bootstrap_ref)).maybeSingle();
         if(raced.error)throw new Error(raced.error.message||"atlas_seed_race_lookup_failed");
-        if(raced.data?.snapshot_id)return json(raced.data.metadata?.seed_status==="seeding"?409:200,{ok:raced.data.metadata?.seed_status!=="seeding",status:raced.data.metadata?.seed_status==="seeding"?"seed_in_progress":"already_seeded",snapshot_id:raced.data.snapshot_id,repository_count:raced.data.repository_count,created_at:raced.data.created_at,scan_mode:"metadata_only",github_writes:0});
+        if(raced.data?.snapshot_id){const inProgress=raced.data.metadata?.seed_status==="seeding";return json(inProgress?409:200,{ok:!inProgress,status:inProgress?"seed_in_progress":"already_seeded",snapshot_id:raced.data.snapshot_id,repository_count:raced.data.repository_count,created_at:raced.data.created_at,scan_mode:"metadata_only",github_writes:0});}
       }
       throw new Error(claimed.error.message||"snapshot_claim_failed");
     }
@@ -75,8 +75,8 @@ Deno.serve(async(request:Request)=>{
       for(let page=1;page<=MAX_PAGES;page+=1){const payload=await github(`/installation/repositories?per_page=100&page=${page}`,installToken);const items=Array.isArray(payload?.repositories)?payload.repositories:[];repos.push(...items);if(items.length<100)break;if(page===MAX_PAGES)throw new Error("repository_inventory_exceeds_page_limit");}
     }finally{installToken="";}
     const dedup=[...new Map(repos.filter((r)=>Number.isSafeInteger(Number(r?.id))&&typeof r?.full_name==="string").map((r)=>[Number(r.id),r])).values()];
-    const snap=await admin.from("apex_repo_atlas_snapshots").update({repository_count:dedup.length,metadata:{owner:OWNER,installation_scope:"all",scan_mode:"metadata_only",seed_status:"seeded",github_content_fetch:false,inventory_token_permissions:{contents:"read"},inventory_token_persisted:false}}).eq("snapshot_id",snapshotId);
-    if(snap.error)throw new Error(snap.error.message||"snapshot_finalize_failed");
+    const snap=await admin.from("apex_repo_atlas_snapshots").update({repository_count:dedup.length,metadata:{owner:OWNER,installation_scope:"all",scan_mode:"metadata_only",seed_status:"seeding",github_content_fetch:false,inventory_token_permissions:{contents:"read"},inventory_token_persisted:false}}).eq("snapshot_id",snapshotId);
+    if(snap.error)throw new Error(snap.error.message||"snapshot_update_failed");
     const rows=dedup.map((repo:any)=>{const fam=family(String(repo.name||""),String(repo.description||""));const life=lifecycle(repo);const scored=score(repo,fam,life);return {snapshot_id:snapshotId,repository_id:Number(repo.id),full_name:String(repo.full_name),name:String(repo.name),visibility:repo.visibility??null,is_private:Boolean(repo.private),is_fork:Boolean(repo.fork),is_archived:Boolean(repo.archived),default_branch:repo.default_branch??null,size_kb:Number(repo.size||0),language:repo.language??null,description:repo.description??null,homepage:repo.homepage??null,pushed_at:repo.pushed_at??null,updated_at:repo.updated_at??null,family:fam,lifecycle:life,name_signature:signature(String(repo.name)),ignition_score:scored.score,metadata:{html_url:repo.html_url??null,has_issues:repo.has_issues??null,has_projects:repo.has_projects??null,has_discussions:repo.has_discussions??null,reasons:scored.reasons}};});
     for(let i=0;i<rows.length;i+=100){const inserted=await admin.from("apex_repo_atlas_repositories").insert(rows.slice(i,i+100));if(inserted.error)throw new Error(inserted.error.message||"atlas_repository_insert_failed");}
     const candidates=rows.filter((r:any)=>!r.is_archived&&r.lifecycle!=="backup").sort((a:any,b:any)=>b.ignition_score-a.ignition_score||String(b.pushed_at||"").localeCompare(String(a.pushed_at||""))).slice(0,25);
@@ -87,6 +87,8 @@ Deno.serve(async(request:Request)=>{
       {snapshot_id:snapshotId,action:"ignition_queue_generated",outcome:"succeeded",metadata:{queue_count:queueRows.length,top_n:25}},
     ]);
     if(audit.error)throw new Error(audit.error.message||"atlas_audit_receipt_failed");
+    const finalized=await admin.from("apex_repo_atlas_snapshots").update({metadata:{owner:OWNER,installation_scope:"all",scan_mode:"metadata_only",seed_status:"seeded",github_content_fetch:false,inventory_token_permissions:{contents:"read"},inventory_token_persisted:false}}).eq("snapshot_id",snapshotId);
+    if(finalized.error)throw new Error(finalized.error.message||"snapshot_finalize_failed");
     const famCounts:Record<string,number>={};const lifeCounts:Record<string,number>={};for(const r of rows){famCounts[r.family]=(famCounts[r.family]||0)+1;lifeCounts[r.lifecycle]=(lifeCounts[r.lifecycle]||0)+1;}
     return json(200,{ok:true,status:"seeded",snapshot_id:snapshotId,repository_count:rows.length,families:famCounts,lifecycle:lifeCounts,ignition_queue_count:queueRows.length,top_ignition:candidates.slice(0,10).map((r:any)=>({repository:r.full_name,score:r.ignition_score,family:r.family,reasons:r.metadata.reasons})),scan_mode:"metadata_only",github_writes:0});
   }catch(error){if(snapshotId)await admin.from("apex_repo_atlas_snapshots").delete().eq("snapshot_id",snapshotId);const message=error instanceof Error?error.message:"atlas_seed_failed";return json(400,{ok:false,error:message.slice(0,512)});}finally{privateKey="";appJwt="";installToken="";}
