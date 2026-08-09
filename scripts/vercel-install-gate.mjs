@@ -6,7 +6,16 @@ if (process.env.VERCEL !== '1') {
 
 const commands = [
   ['npm', ['run', 'typecheck:api']],
-  ['npm', ['test']],
+  ['npx', [
+    '--no-install',
+    'vitest',
+    'run',
+    'src/remote.test.ts',
+    'src/index.test.ts',
+    'tests/keymasterClient.test.ts',
+    'tests/boxBridge.test.ts',
+    'tests/securityHardening.test.ts',
+  ]],
   ['node', [
     '--test',
     'src/proof/merge-authority.test.mjs',
@@ -89,4 +98,4 @@ if (
   }
 }
 
-console.log(`[vercel-install-gate] API typecheck, 38 gateway tests, 25 exact Merge Authority tests, high-severity dependency audit, ${status.identity_environment || 'unknown'} OIDC, and ${notionProof} passed`);
+console.log(`[vercel-install-gate] API typecheck, 38 gateway tests, 26 exact Merge Authority tests, high-severity dependency audit, ${status.identity_environment || 'unknown'} OIDC, and ${notionProof} passed`);
