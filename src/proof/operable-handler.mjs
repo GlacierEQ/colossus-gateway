@@ -8,7 +8,7 @@ import {
 } from './github-provider.mjs';
 
 const SUPABASE_URL = process.env.APEX_CAPABILITY_SUPABASE_URL || 'https://dyhprklicgewmrimecey.supabase.co';
-const BROKER_URL = `${SUPABASE_URL}/functions/v1/apex-keymaster-broker`;
+const BROKER_URL = `${SUPABASE_URL}/functions/v1/apex-keymaster-pkcs1-proof`;
 const TARGET_REPOSITORY = 'GlacierEQ/public-actions-runner-host';
 const BASE_SHA = '4ff1b382d58695e5f3a2f52816ac53155c50a96a';
 const SOURCE_SHA = 'daea3825be13cf60792c9c15f3825a7ce07296ad';
