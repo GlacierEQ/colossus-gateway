@@ -16,6 +16,7 @@
     { "src": "/keymaster/github/start", "dest": "/api/keymaster-connect.ts" },
     { "src": "/keymaster/github/callback", "dest": "/api/keymaster-connect.ts" },
     { "src": "/keymaster/github/setup", "dest": "/api/keymaster-connect.ts" },
+    { "src": "/proof/merge-authority-operable", "dest": "/api/merge-authority-operable-proof.ts" },
     { "src": "/notion/call", "dest": "/api/notion-call.ts" },
     { "src": "/notion/connect", "dest": "/api/notion-connect.ts" },
     { "src": "/download", "dest": "/api/download.ts" },
