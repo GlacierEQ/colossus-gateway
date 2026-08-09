@@ -2,14 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getVercelOidcToken } from '@vercel/oidc';
 
 // Exact vendored JavaScript proof sources are intentionally executed without translation.
-// @ts-expect-error Exact .mjs proof source has no TypeScript declaration file.
 import { executeMergeAuthorityGraph, RESULT, sha256 } from '../src/proof/merge-authority.mjs';
-// @ts-expect-error Exact .mjs proof source has no TypeScript declaration file.
-import {
-  bindGitHubProviderToRepository,
-  createGitHubProviderAdapter,
-  ensureGitHubBranch,
-} from '../src/proof/github-provider.mjs';
+// @ts-expect-error Exact .mjs provider proof source has no TypeScript declaration file.
+import { bindGitHubProviderToRepository, createGitHubProviderAdapter, ensureGitHubBranch } from '../src/proof/github-provider.mjs';
 
 const SUPABASE_URL = process.env.APEX_CAPABILITY_SUPABASE_URL || 'https://dyhprklicgewmrimecey.supabase.co';
 const BROKER_URL = `${SUPABASE_URL}/functions/v1/apex-keymaster-broker`;
