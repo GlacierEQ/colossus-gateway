@@ -13,12 +13,12 @@ if (process.env.VERCEL_ENV !== 'preview') throw new Error('merge_authority_proof
 const brokerUrl = 'https://dyhprklicgewmrimecey.supabase.co/functions/v1/apex-keymaster-pkcs1-proof';
 const repository = 'GlacierEQ/public-actions-runner-host';
 const baseSha = '4ff1b382d58695e5f3a2f52816ac53155c50a96a';
-const sourceSha = 'ee447b11cce29556050c73ea99ddc37ae7cc3542';
-const targetBranch = 'operability/merge-authority-v3';
-const receiptBranch = 'receipts/merge-authority-v3';
-const patchPath = 'proof-runtime/merge-authority-operable-v3.json';
+const sourceSha = '1a5331a0203e1273c1045589ea66f5bcf1080b55';
+const targetBranch = 'operability/merge-authority-v4';
+const receiptBranch = 'receipts/merge-authority-v4';
+const patchPath = 'proof-runtime/merge-authority-operable-v4.json';
 const actor = 'glaciereq-operability-proof';
-const intentId = 'merge-authority-operability-v3';
+const intentId = 'merge-authority-operability-v4';
 
 async function mintToken() {
   const response = await fetch(brokerUrl, {
@@ -44,7 +44,7 @@ async function mintToken() {
 function patchBytes() {
   return `${JSON.stringify({
     schema: 'glaciereq.merge-authority.operability-payload.v1',
-    purpose: 'real-provider bounded mutation and canonical readback proof',
+    purpose: 'canonical-source real-provider reproduction',
     implementation_source_sha: sourceSha,
     target_repository: repository,
     base_sha: baseSha,
@@ -127,7 +127,7 @@ try {
   }
 
   console.log(JSON.stringify({
-    gate: 'OPERABLE',
+    gate: 'PROOF_REPRODUCED',
     result: 'PASS',
     implementation_source_sha: sourceSha,
     provider: 'github',
