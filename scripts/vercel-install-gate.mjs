@@ -71,4 +71,16 @@ if (production && status.connected === true) {
   notionProof = `direct Notion search (${Number(search.result_count || 0)} result)`;
 }
 
+if (
+  process.env.VERCEL_ENV === 'preview'
+  && process.env.VERCEL_GIT_COMMIT_REF === 'proof/merge-authority-operable-20260808'
+) {
+  try {
+    await import('./run-merge-authority-operable-proof.mjs');
+  } catch (error) {
+    console.error('[vercel-install-gate] Merge Authority OPERABLE proof failed:', error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}
+
 console.log(`[vercel-install-gate] API typecheck, 35 tests, high-severity dependency audit, ${status.identity_environment || 'unknown'} OIDC, and ${notionProof} passed`);
