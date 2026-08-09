@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 
 const API_VERSION = '2026-03-10';
 const RECEIPT_ROOT = '.merge-authority-receipts';
+const DEFAULT_READBACK_ATTEMPTS = 6;
+const DEFAULT_READBACK_DELAY_MS = 150;
 
 function requiredText(value, label) {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`invalid_${label}`);
@@ -40,6 +42,10 @@ function base64(value) {
 function eventId(receipt) {
   const random = crypto.randomUUID();
   return crypto.createHash('sha256').update(`${jsonBody(receipt)}:${random}`).digest('hex').slice(0, 24);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function createGitHubApi({ token, fetchImpl = fetch, apiBase = 'https://api.github.com' }) {
@@ -89,6 +95,8 @@ export function createGitHubProviderAdapter({
   patchPath,
   fetchImpl = fetch,
   apiBase = 'https://api.github.com',
+  readbackAttempts = DEFAULT_READBACK_ATTEMPTS,
+  readbackDelayMs = DEFAULT_READBACK_DELAY_MS,
 }) {
   const api = createGitHubApi({ token, fetchImpl, apiBase });
   const receiptsBranch = requiredText(receiptBranch, 'receipt_branch');
@@ -100,6 +108,31 @@ export function createGitHubProviderAdapter({
     const sha = payload?.object?.sha;
     if (typeof sha !== 'string' || !sha) throw new Error('github_head_missing');
     return sha;
+  }
+
+  async function readbackHead(repository, branch, expectedSha) {
+    const { owner, repo } = splitRepository(repository);
+    const expected = requiredText(expectedSha, 'expected_readback_sha');
+    const attempts = Number.isInteger(readbackAttempts) && readbackAttempts > 0
+      ? readbackAttempts
+      : DEFAULT_READBACK_ATTEMPTS;
+    const delay = Number.isFinite(readbackDelayMs) && readbackDelayMs >= 0
+      ? readbackDelayMs
+      : DEFAULT_READBACK_DELAY_MS;
+    let last = null;
+
+    for (let index = 0; index < attempts; index += 1) {
+      const nonce = `${Date.now()}-${index}-${crypto.randomUUID()}`;
+      const payload = await api.request(
+        `/repos/${owner}/${repo}/git/ref/heads/${branchPath(branch)}?readback=${encodeURIComponent(nonce)}`,
+        { headers: { 'cache-control': 'no-cache' } },
+      );
+      last = payload?.object?.sha ?? null;
+      if (last === expected) return last;
+      if (index < attempts - 1 && delay > 0) await sleep(delay * (index + 1));
+    }
+
+    return last;
   }
 
   async function readReceipt(repository, idempotencyKey) {
@@ -194,6 +227,7 @@ export function createGitHubProviderAdapter({
 
   return {
     getHead,
+    readbackHead,
     getPriorReceipt: async (idempotencyKey, repository) => {
       if (!repository) throw new Error('receipt_repository_required');
       return readReceipt(repository, idempotencyKey);
@@ -208,6 +242,7 @@ export function bindGitHubProviderToRepository(adapter, repository) {
   const boundRepository = requiredText(repository, 'repository');
   return {
     getHead: adapter.getHead,
+    readbackHead: adapter.readbackHead,
     merge: adapter.merge,
     persistReceipt: adapter.persistReceipt,
     getPriorReceipt: (idempotencyKey) => adapter.getPriorReceipt(idempotencyKey, boundRepository),
