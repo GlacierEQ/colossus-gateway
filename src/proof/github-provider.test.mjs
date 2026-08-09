@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -12,6 +13,10 @@ function response(status, body = {}) {
     ok: status >= 200 && status < 300,
     async json() { return body; },
   };
+}
+
+function digest(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
 }
 
 function fakeGitHub() {
@@ -77,21 +82,47 @@ test('provider mutation commits exact authorized bytes and uses non-force ref up
     fetchImpl: fake.fetchImpl,
   });
   const adapter = bindGitHubProviderToRepository(raw, 'GlacierEQ/public-actions-runner-host');
+  const patch = '{"ok":true}\n';
   const result = await adapter.merge({
     repository: 'GlacierEQ/public-actions-runner-host',
     targetBranch: 'operability/proof',
     expectedHead: 'base123',
     intentId: 'proof-1',
-    patch: '{"ok":true}\n',
-    patchSha256: 'a'.repeat(64),
+    patch,
+    patchSha256: digest(patch),
     idempotencyKey: 'idem1',
   });
   assert.equal(result.mergeSha, 'commit456');
   const blob = fake.calls.find((call) => call.method === 'POST' && call.path.endsWith('/git/blobs'));
-  assert.equal(blob.body.content, '{"ok":true}\n');
+  assert.equal(blob.body.content, patch);
   const update = fake.calls.find((call) => call.method === 'PATCH');
   assert.equal(update.body.force, false);
   assert.equal(update.body.sha, 'commit456');
+});
+
+test('provider rejects a patch whose bytes do not match the authorized digest before mutation', async () => {
+  const fake = fakeGitHub();
+  const raw = createGitHubProviderAdapter({
+    token: 'test-token',
+    receiptBranch: 'receipts/proof',
+    patchPath: 'proof-runtime/result.json',
+    fetchImpl: fake.fetchImpl,
+  });
+  const adapter = bindGitHubProviderToRepository(raw, 'GlacierEQ/public-actions-runner-host');
+  await assert.rejects(
+    adapter.merge({
+      repository: 'GlacierEQ/public-actions-runner-host',
+      targetBranch: 'operability/proof',
+      expectedHead: 'base123',
+      intentId: 'proof-1',
+      patch: '{"ok":true}\n',
+      patchSha256: digest('{"ok":false}\n'),
+      idempotencyKey: 'idem1',
+    }),
+    /provider_patch_digest_mismatch/,
+  );
+  assert.equal(fake.calls.some((call) => call.method === 'POST' && call.path.endsWith('/git/blobs')), false);
+  assert.equal(fake.calls.some((call) => call.method === 'PATCH'), false);
 });
 
 test('readback reconciliation tolerates an initially stale provider ref', async () => {
