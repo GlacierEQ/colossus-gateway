@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getVercelOidcToken } from '@vercel/oidc';
 
 // Exact vendored JavaScript proof sources are intentionally executed without translation.
+// @ts-expect-error Exact .mjs kernel proof source has no TypeScript declaration file.
 import { executeMergeAuthorityGraph, RESULT, sha256 } from '../src/proof/merge-authority.mjs';
 // @ts-expect-error Exact .mjs provider proof source has no TypeScript declaration file.
 import { bindGitHubProviderToRepository, createGitHubProviderAdapter, ensureGitHubBranch } from '../src/proof/github-provider.mjs';
