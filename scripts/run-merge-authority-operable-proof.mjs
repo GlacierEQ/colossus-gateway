@@ -14,11 +14,11 @@ const brokerUrl = 'https://dyhprklicgewmrimecey.supabase.co/functions/v1/apex-ke
 const repository = 'GlacierEQ/public-actions-runner-host';
 const baseSha = '4ff1b382d58695e5f3a2f52816ac53155c50a96a';
 const sourceSha = 'ee447b11cce29556050c73ea99ddc37ae7cc3542';
-const targetBranch = 'operability/merge-authority-v2';
-const receiptBranch = 'receipts/merge-authority-v2';
-const patchPath = 'proof-runtime/merge-authority-operable-v2.json';
+const targetBranch = 'operability/merge-authority-v3';
+const receiptBranch = 'receipts/merge-authority-v3';
+const patchPath = 'proof-runtime/merge-authority-operable-v3.json';
 const actor = 'glaciereq-operability-proof';
-const intentId = 'merge-authority-operability-v2';
+const intentId = 'merge-authority-operability-v3';
 
 async function mintToken() {
   const response = await fetch(brokerUrl, {
