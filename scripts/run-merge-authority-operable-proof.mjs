@@ -13,7 +13,7 @@ if (process.env.VERCEL_ENV !== 'preview') throw new Error('merge_authority_proof
 const brokerUrl = 'https://dyhprklicgewmrimecey.supabase.co/functions/v1/apex-keymaster-pkcs1-proof';
 const repository = 'GlacierEQ/public-actions-runner-host';
 const baseSha = '4ff1b382d58695e5f3a2f52816ac53155c50a96a';
-const sourceSha = '9b554dd8d3f0a4d316c1b29358c2666434dee1bf';
+const sourceSha = 'ee447b11cce29556050c73ea99ddc37ae7cc3542';
 const targetBranch = 'operability/merge-authority-v2';
 const receiptBranch = 'receipts/merge-authority-v2';
 const patchPath = 'proof-runtime/merge-authority-operable-v2.json';
