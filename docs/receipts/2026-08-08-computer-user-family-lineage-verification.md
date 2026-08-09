@@ -30,10 +30,14 @@ For normalized family signature `computeruser`:
 - `GlacierEQ/Computer_User`: empty placeholder / non-canonical shell; preserve as provenance until a separate retirement action is explicitly authorized.
 - no cross-repository ancestry claim is made because the alternate has no commits to compare.
 
+## Registry persistence
+
+The family decision has already been written to `apex_repo_canonical_registry` and read back as verified from the promoted snapshot. The append-only audit receipt for that persistence/readback is `6ab2fb70-504d-44c3-b6f8-05d42956da13`.
+
 ## Verification boundary
 
 This receipt verifies family/canonical identity only. It does not promote every README runtime claim, does not establish production deployment health, and does not mutate legal/evidence content.
 
 ## Next cursor
 
-Persist this family decision into `apex_repo_canonical_registry`, read it back from the promoted snapshot, then advance to the next non-legal provisional family. Preserve `Computer_User` unless a later bounded retirement decision separately verifies that deletion/archive is appropriate.
+Advance to the next non-legal provisional canonical family. Preserve `GlacierEQ/Computer_User` as provenance unless a later bounded retirement decision separately verifies that archive/deletion is appropriate.
