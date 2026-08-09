@@ -234,7 +234,9 @@ export async function executeMergeAuthorityGraph(request, adapters) {
 
   let readbackHead;
   try {
-    readbackHead = await adapters.getHead(request.repository, request.targetBranch);
+    readbackHead = typeof adapters.readbackHead === 'function'
+      ? await adapters.readbackHead(request.repository, request.targetBranch, mergeResult.mergeSha)
+      : await adapters.getHead(request.repository, request.targetBranch);
   } catch (error) {
     return persist(adapters, {
       ...base,
