@@ -10,6 +10,10 @@ function requiredText(value, label) {
   return value.trim();
 }
 
+function sha256Text(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
 function splitRepository(repository) {
   const value = requiredText(repository, 'repository');
   const parts = value.split('/');
@@ -180,8 +184,11 @@ export function createGitHubProviderAdapter({
 
   async function merge({ repository, targetBranch, expectedHead, intentId, patch, patchSha256, idempotencyKey }) {
     const { owner, repo } = splitRepository(repository);
-    const content = requiredText(patch, 'patch');
+    requiredText(patch, 'patch');
+    const content = patch;
     const expected = requiredText(expectedHead, 'expected_head');
+    const authorizedDigest = requiredText(patchSha256, 'patch_sha256');
+    if (sha256Text(content) !== authorizedDigest) throw new Error('provider_patch_digest_mismatch');
 
     const blob = await api.request(`/repos/${owner}/${repo}/git/blobs`, {
       method: 'POST',
@@ -205,7 +212,7 @@ export function createGitHubProviderAdapter({
     const commit = await api.request(`/repos/${owner}/${repo}/git/commits`, {
       method: 'POST',
       body: jsonBody({
-        message: `merge-authority ${requiredText(intentId, 'intent_id')} ${requiredText(patchSha256, 'patch_sha256').slice(0, 12)}`,
+        message: `merge-authority ${requiredText(intentId, 'intent_id')} ${authorizedDigest.slice(0, 12)}`,
         tree: tree.sha,
         parents: [expected],
       }),
