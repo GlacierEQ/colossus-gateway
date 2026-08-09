@@ -13,12 +13,12 @@ if (process.env.VERCEL_ENV !== 'preview') throw new Error('merge_authority_proof
 const brokerUrl = 'https://dyhprklicgewmrimecey.supabase.co/functions/v1/apex-keymaster-pkcs1-proof';
 const repository = 'GlacierEQ/public-actions-runner-host';
 const baseSha = '4ff1b382d58695e5f3a2f52816ac53155c50a96a';
-const sourceSha = 'daea3825be13cf60792c9c15f3825a7ce07296ad';
-const targetBranch = 'operability/merge-authority-v1';
-const receiptBranch = 'receipts/merge-authority-v1';
-const patchPath = 'proof-runtime/merge-authority-operable-v1.json';
+const sourceSha = '9b554dd8d3f0a4d316c1b29358c2666434dee1bf';
+const targetBranch = 'operability/merge-authority-v2';
+const receiptBranch = 'receipts/merge-authority-v2';
+const patchPath = 'proof-runtime/merge-authority-operable-v2.json';
 const actor = 'glaciereq-operability-proof';
-const intentId = 'merge-authority-operability-v1';
+const intentId = 'merge-authority-operability-v2';
 
 async function mintToken() {
   const response = await fetch(brokerUrl, {
@@ -104,7 +104,7 @@ try {
   const adapter = bindGitHubProviderToRepository(raw, repository);
   const first = await executeMergeAuthorityGraph(request, adapter);
   const replay = await executeMergeAuthorityGraph(request, adapter);
-  const targetHead = await adapter.getHead(repository, targetBranch);
+  const targetHead = await adapter.readbackHead(repository, targetBranch, first.mergeSha || replay.mergeSha);
   const observed = await readContent(api);
   const canonical = await readCanonicalReceipt(api, first.idempotencyKey || replay.idempotencyKey);
   const mergeSha = first.mergeSha || canonical.mergeSha;
