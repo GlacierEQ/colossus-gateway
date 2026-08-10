@@ -28,9 +28,8 @@ select
   enrich.source_full_name,
   enrich.observed_at,
   base.family,
-  base.lifecycle_state,
-  base.canonical_score,
-  base.verified_canonical
+  base.lifecycle,
+  base.ignition_score
 from current_receipt current
 join public.apex_repo_atlas_repositories base
   on base.snapshot_id = current.snapshot_id
