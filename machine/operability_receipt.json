@@ -1,0 +1,36 @@
+{
+  "schema": "glaciereq.operability-receipt.v1",
+  "repository": "GlacierEQ/colossus-gateway",
+  "at": "2026-08-10T04:12Z",
+  "source_sha": "28fbb53d028a14e598d91b2fe60b523077b15c5bcb6d6628adfce3c9fbbeb793",
+  "entry": "scripts/operate.py",
+  "primary_output": {
+    "module": "memory_router_surface",
+    "ok": true,
+    "repository": "GlacierEQ/colossus-gateway",
+    "smoke": {
+      "args": [],
+      "content_checked": true,
+      "invoked": true,
+      "kind": "class",
+      "method": "health_check_all",
+      "module_local": true,
+      "name": "MemoryRouter",
+      "result": {
+        "backends": {
+          "pinecone": {
+            "status": "not_configured"
+          },
+          "supermemory": {
+            "status": "not_configured"
+          }
+        },
+        "overall": "ok",
+        "router": "memory_router",
+        "timestamp": "2026-08-10T04:13:17.799153+00:00"
+      }
+    }
+  },
+  "dual_run_ok": true,
+  "result": "PASS"
+}

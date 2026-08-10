@@ -1,0 +1,11 @@
+{
+  "schema": "glaciereq.promotion-authority-grant.v1",
+  "repository": "GlacierEQ/colossus-gateway",
+  "source_sha": "28fbb53d028a14e598d91b2fe60b523077b15c5bcb6d6628adfce3c9fbbeb793",
+  "proof_receipt_digest": "e40332ee9f332877d44882f71e8dfce74fa8c9bffd9786e1d5a5a18c34d8f3e7",
+  "not_after": 1788927149.234226,
+  "mac": "6fdc8ba84bc525d72f5590847fde79e01640b8de93a40b69be5c016ffc3b7786",
+  "issuer": "local_operator_promotion_authority",
+  "verified": true,
+  "secret_ref": "src/promotion_authority.py::LOCAL_OPERATOR_SECRET"
+}
