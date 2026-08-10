@@ -21,7 +21,7 @@ The earlier 1,220-row snapshot remains a valid historical observation at 2026-08
 - GitHub writes: **0**
 - installation token persisted: **false**
 
-The immediately preceding canonical snapshot was `5c0eda9d-c0c2-4fd2-a862-5df8dd10a0b7` at 2026-08-10T10:02:10.499749Z. The latest refresh reports **0 new / 0 removed-or-transferred / 0 renamed-or-transferred** relative to that snapshot, confirming stable repository membership across consecutive full-installation scans. Six repository state fields changed between those scans, which is why the inventory roots differ despite identical membership.
+The immediately preceding canonical snapshot was `5c0eda9d-c0c2-4fd2-a862-5df8dd10a0b7`. The latest refresh reports **0 new / 0 removed-or-transferred / 0 renamed-or-transferred** relative to that snapshot, confirming stable repository membership across consecutive full-installation scans. Six repository state fields changed between those scans, which is why the inventory roots differ despite identical membership.
 
 ## Full head-SHA and fork-lineage enrichment
 
@@ -52,7 +52,7 @@ The immutable projection binds, for every repository in this snapshot:
 - root fork source repository ID/name when forked
 - observation timestamp
 
-The production service-role-only view `public.apex_repo_atlas_current_enriched_v1` resolves to this latest fully finalized enriched snapshot. Production readback returns **1,094 rows, 1,094 non-null default HEAD SHAs, and 510 fork source-lineage rows** from exactly one snapshot.
+The production service-role-only view `public.apex_repo_atlas_current_enriched_v1` resolves to this latest fully finalized enriched snapshot. Production readback returns **1,094 rows, 1,094 non-null default HEAD SHAs, 510 fork parent-lineage rows, and 510 fork source-lineage rows** from exactly one snapshot.
 
 ## Exact Aug. 8 reconciliation
 
@@ -74,16 +74,22 @@ Stable GitHub repository-ID comparison from the Aug. 8 baseline directly to the 
 
 Therefore the phrase “86 missing repositories” is only a **net-count shorthand**. There is no defensible set of exactly 86 deleted repository IDs. The complete stable-ID accounting is the disjoint pair of sets: **130 departures and 44 arrivals**, whose net is −86.
 
-Composition of those sets:
+### Corrected fork/native composition
 
-- removed/transferred: **74 forks + 56 non-forks = 130**
-- added: **2 forks + 42 non-forks = 44**
+Direct production readback of the immutable Aug. 8 and current snapshot rows gives:
+
+- removed/transferred: **72 forks + 58 non-forks = 130**
+- added: **0 forks + 44 non-forks = 44**
 
 This directly explains the category changes:
 
-- forks: `582 - 74 + 2 = 510`
-- non-forks: `598 - 56 + 42 = 584`
+- forks: `582 - 72 + 0 = 510`
+- non-forks: `598 - 58 + 44 = 584`
 - total: `1,180 - 130 + 44 = 1,094`
+
+The removed set further consists of **68 public non-archived forks, 4 public archived forks, 57 private non-archived non-forks, and 1 public non-archived non-fork**. The snapshots prove absence from the current installation inventory; they do **not** by themselves distinguish deletion from transfer-out, so the disposition remains `REMOVED_OR_TRANSFERRED` unless a separate operation receipt proves a narrower cause.
+
+This section corrects an earlier arithmetic classification in this receipt that stated `74 forks + 56 non-forks` removed and `2 forks + 42 non-forks` added. Those older category figures had the right net effect but did not match the immutable row-level stable-ID sets. The row-level query below is controlling.
 
 ### Deterministic row-level accounting query
 
@@ -160,6 +166,6 @@ The canonical refresh then produced the 1,094-member estate rather than silently
 
 ## Supersession rule
 
-`docs/receipts/2026-08-10-repo-atlas-reconciliation.md` is retained as historical provenance for the earlier 1,220 observation, but any statement in it describing 1,220 as current/present-state authority is superseded by this receipt.
+`docs/receipts/2026-08-10-repo-atlas-reconciliation.md` and `.json` are retained as historical provenance for the earlier 1,220 observation. Any statement in those historical receipts describing 1,220 as current/present-state authority is superseded by this receipt.
 
 Current estate decisions must bind to snapshot `b9a12915-0cda-4a1b-80f0-f6505b3531d2` or a later finalized full-installation snapshot.
