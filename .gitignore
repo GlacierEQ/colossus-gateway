@@ -2,3 +2,20 @@ node_modules/
 dist/
 .env
 *.log
+
+# Python bytecode / caches (elite estate hygiene)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+.env
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
