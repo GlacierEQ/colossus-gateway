@@ -1,0 +1,44 @@
+{
+  "schema": "glaciereq.repo-atlas.reconciliation.v1",
+  "generated_at": "2026-08-10T08:49:00Z",
+  "authority": "full-installation-github-app-snapshot",
+  "baseline": {
+    "snapshot_id": "f8ef694c-ef5b-4513-ad19-2b92f18f4fbc",
+    "created_at": "2026-08-08T16:23:15.845973Z",
+    "repository_count": 1180,
+    "nonfork_count": 598,
+    "fork_count": 582,
+    "archived_count": 53,
+    "private_count": 523
+  },
+  "current": {
+    "snapshot_id": "dc3dad1b-997f-45e7-9dc9-1741d1ec9ad6",
+    "created_at": "2026-08-10T06:33:47.140311Z",
+    "repository_count": 1220,
+    "nonfork_count": 638,
+    "fork_count": 582,
+    "archived_count": 54,
+    "private_count": 525,
+    "inventory_root_sha256": "09f71929ae6f2a872788e5935e56733a220eeeedcd41317136f47f3f32d6be00"
+  },
+  "stable_id_delta": {
+    "added": 40,
+    "removed_or_transferred": 0,
+    "renamed_or_transferred": 0
+  },
+  "retired_claims": [
+    {
+      "claim": "86 repositories are missing relative to the Aug. 8 snapshot",
+      "status": "RETIRED",
+      "reason": "derived from a scoped GitHub Search result rather than the verified all-repository GitHub App installation"
+    }
+  ],
+  "schema_gaps": [
+    "default_head_sha",
+    "fork_parent_repository_id",
+    "fork_parent_full_name",
+    "fork_source_repository_id",
+    "fork_source_full_name"
+  ],
+  "next_contract": "snapshot-keyed immutable enrichment projection with independent SHA-256 integrity root"
+}
