@@ -1,0 +1,63 @@
+{
+  "schema": "glaciereq.repo-atlas.authoritative-reconciliation.v1",
+  "authority": "full-installation-github-app-snapshot-plus-finalized-enrichment",
+  "baseline": {
+    "snapshot_id": "f8ef694c-ef5b-4513-ad19-2b92f18f4fbc",
+    "repository_count": 1180,
+    "nonfork_count": 598,
+    "fork_count": 582
+  },
+  "current": {
+    "snapshot_id": "b9a12915-0cda-4a1b-80f0-f6505b3531d2",
+    "repository_count": 1094,
+    "nonfork_count": 584,
+    "fork_count": 510,
+    "private_count": 472,
+    "archived_count": 68,
+    "inventory_root_sha256": "9c1f62d672a07fa949758286e765b8698ea24b8f2eaba7eb40a85b4e3046d719"
+  },
+  "enrichment": {
+    "receipt_id": "4c040df3-785f-4614-95da-01016e7f2577",
+    "enriched_count": 1094,
+    "default_head_count": 1094,
+    "fork_parent_lineage_count": 510,
+    "fork_source_lineage_count": 510,
+    "enrichment_root_sha256": "2638b242a87336fee7e1b218b4703903f8d20e9944546cf96c7bb5c60533724a",
+    "view": "public.apex_repo_atlas_current_enriched_v1"
+  },
+  "stable_id_reconciliation": {
+    "stable": 1050,
+    "removed_or_transferred": 130,
+    "added": 44,
+    "net_change": -86,
+    "renamed_stable_ids": 0,
+    "removed_composition": {
+      "forks": 72,
+      "nonforks": 58,
+      "public_nonarchived_forks": 68,
+      "public_archived_forks": 4,
+      "private_nonarchived_nonforks": 57,
+      "public_nonarchived_nonforks": 1
+    },
+    "added_composition": {
+      "forks": 0,
+      "nonforks": 44
+    },
+    "equations": {
+      "forks": "582 - 72 + 0 = 510",
+      "nonforks": "598 - 58 + 44 = 584",
+      "total": "1180 - 130 + 44 = 1094"
+    },
+    "disposition_boundary": "Snapshot membership proves absence/presence by stable GitHub repository ID. It does not distinguish deletion from transfer-out without a separate operation receipt."
+  },
+  "membership_stability": {
+    "preceding_snapshot_id": "5c0eda9d-c0c2-4fd2-a862-5df8dd10a0b7",
+    "preceding_count": 1094,
+    "latest_delta": {
+      "new": 0,
+      "removed_or_transferred": 0,
+      "renamed_or_transferred": 0,
+      "state_changes": 6
+    }
+  }
+}
