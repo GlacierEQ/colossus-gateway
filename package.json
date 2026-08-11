@@ -13,7 +13,8 @@
     "test": "vitest run",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:config": "node scripts/check-config.mjs",
-    "verify": "npm run typecheck && npm run typecheck:api && npm test && npm run audit:prod"
+    "verify:public": "node scripts/verify-public-surface.mjs",
+    "verify": "npm run typecheck && npm run typecheck:api && npm test && npm run audit:prod && npm run verify:public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
