@@ -1,0 +1,57 @@
+{
+  "schema": "glaciereq.keymaster.oidc-broker-deployment-receipt.v1",
+  "recorded_at": "2026-08-11T20:48:00Z",
+  "source_authority": "GlacierEQ/colossus-gateway",
+  "source_path": "supabase/functions/apex-github-oidc-broker/index.ts",
+  "source_git_blob_sha": "e3eb77d57e235a40c4d652e53ac801d10ce05bda",
+  "supabase": {
+    "project_ref": "dyhprklicgewmrimecey",
+    "function_slug": "apex-github-oidc-broker",
+    "function_id": "6ff8793b-f797-4f69-b692-addd4f993174",
+    "deployed_version": 3,
+    "status": "ACTIVE",
+    "deployment_bundle_sha256": "e22cf7429deb009296331a71f38dbd88ac2bebf553141167399ceb9acc0acb2a"
+  },
+  "repair_contract": {
+    "live_installation_binding_required": true,
+    "requested_repository_membership_checked_with_app_jwt": true,
+    "repository_identity_resolved_to_numeric_id": true,
+    "resolver_token_scope": "installation_metadata_read",
+    "resolver_token_returned_to_workload": false,
+    "resolver_token_revoked_before_workload_token_mint": true,
+    "workload_scope_method": "repository_ids",
+    "workload_token_exact_repository_readback_required": true,
+    "workload_token_persisted": false,
+    "pre_return_failure_revocation_attempted": true
+  },
+  "runtime_evidence": [
+    {
+      "workflow_run_id": 31532884202,
+      "purpose": "Monolith computer-user foundation exact-head proof after scoped-token repair",
+      "result": "SUCCESS"
+    },
+    {
+      "workflow_run_id": 31534013953,
+      "purpose": "Monolith Mastermind lineage-reconciliation exact-head proof",
+      "result": "SUCCESS"
+    },
+    {
+      "workflow_run_id": 31534286351,
+      "attempt": 1,
+      "purpose": "Monolith lineage-reconciliation merge-commit proof",
+      "result": "TRANSIENT_BROKER_HTTP_400_BEFORE_JOB_CLAIM"
+    },
+    {
+      "workflow_run_id": 31534286351,
+      "attempt": 2,
+      "purpose": "Monolith lineage-reconciliation merge-commit proof retry",
+      "result": "SUCCESS"
+    }
+  ],
+  "truth_boundary": {
+    "source_now_tracked": true,
+    "deployment_source_equivalence": "The tracked file was copied from the live Supabase version-3 function source readback before this receipt was created.",
+    "transient_400_root_cause": "UNRESOLVED",
+    "no_claim": "A successful retry does not explain the isolated broker 400; diagnostics should preserve bounded broker error codes without exposing credentials."
+  }
+}
