@@ -47,7 +47,8 @@ describe("Keymaster GitHub OIDC broker source contract", () => {
     expect(resolverRead).toBeGreaterThan(resolverMint);
     expect(resolverRevoke).toBeGreaterThan(resolverRead);
     expect(scopedMint).toBeGreaterThan(resolverRevoke);
-    expect(source).toContain('resolver_token_returned_to_workload');
+    expect(source).toContain("token: workloadToken");
+    expect(source).not.toContain("token: resolverToken");
   });
 
   it("binds live installation membership and exact repository identity", () => {
