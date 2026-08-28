@@ -16,7 +16,6 @@ Usage:
 This is the ONLY file other Colossus repos should import for memory.
 """
 
-import os
 import json
 from datetime import datetime, timezone
 from typing import Optional
@@ -100,8 +99,13 @@ class MemoryRouter:
 
         if self._pinecone:
             pinecone_result = store_scenario(
-                self._pinecone, scenario_id, embedding,
-                repo, scenario_name, result, metrics,
+                self._pinecone,
+                scenario_id,
+                embedding,
+                repo,
+                scenario_name,
+                result,
+                metrics,
             )
 
         if self._supermemory:
@@ -114,7 +118,12 @@ class MemoryRouter:
             )
             supermemory_result = self._supermemory.write(
                 content=content,
-                tags=["scenario", repo, result.lower(), scenario_name.replace(" ", "_")],
+                tags=[
+                    "scenario",
+                    repo,
+                    result.lower(),
+                    scenario_name.replace(" ", "_"),
+                ],
                 space_key="scenarios",
                 metadata={"scenario_id": scenario_id, "repo": repo, "result": result},
             )
@@ -154,8 +163,13 @@ class MemoryRouter:
 
         if self._pinecone:
             results["pinecone"] = self._pinecone.upsert(
-                vectors=[{"id": doc_id, "values": embedding,
-                          "metadata": {"text": text[:1000], **metadata}}],
+                vectors=[
+                    {
+                        "id": doc_id,
+                        "values": embedding,
+                        "metadata": {"text": text[:1000], **metadata},
+                    }
+                ],
                 namespace=namespace,
             )
 

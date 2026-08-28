@@ -4,6 +4,7 @@ xai-colossus-energy: APEX Connector
 Registers with DOCTOR-STRANGE connector registry, writes heartbeat +
 scenario results to Supabase + MemoryRouter after each gauntlet run.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,12 +18,14 @@ logger = logging.getLogger(__name__)
 # Lazy imports so the module loads even without optional deps
 try:
     from supabase import create_client, Client as SupabaseClient
+
     _SUPABASE_AVAILABLE = True
 except ImportError:
     _SUPABASE_AVAILABLE = False
 
 try:
     from src.memory.memory_router import MemoryRouter
+
     _MEMORY_AVAILABLE = True
 except ImportError:
     _MEMORY_AVAILABLE = False
@@ -75,7 +78,9 @@ class EnergyConnector:
     def register(self) -> bool:
         """Register this connector in the APEX connector registry."""
         if not self._supabase:
-            logger.info("[EnergyConnector] Supabase unavailable — skipping registration")
+            logger.info(
+                "[EnergyConnector] Supabase unavailable — skipping registration"
+            )
             return False
         try:
             self._supabase.table("connector_registry").upsert(
@@ -162,5 +167,7 @@ class EnergyConnector:
                 except Exception as exc:
                     logger.warning("[EnergyConnector] Supabase write failed: %s", exc)
 
-        logger.info("[EnergyConnector] Recorded %d/%d scenario results", written, len(results))
+        logger.info(
+            "[EnergyConnector] Recorded %d/%d scenario results", written, len(results)
+        )
         return written

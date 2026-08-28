@@ -33,13 +33,13 @@ except ImportError:
 
 
 SUPERMEMORY_API_KEY = os.getenv("SUPERMEMORY_API_KEY", "")
-SUPERMEMORY_BASE    = os.getenv("SUPERMEMORY_BASE_URL", "https://api.supermemory.ai/v3")
+SUPERMEMORY_BASE = os.getenv("SUPERMEMORY_BASE_URL", "https://api.supermemory.ai/v3")
 
 _SPACES = {
-    "ops":       os.getenv("SUPERMEMORY_SPACE_OPS",       ""),
+    "ops": os.getenv("SUPERMEMORY_SPACE_OPS", ""),
     "scenarios": os.getenv("SUPERMEMORY_SPACE_SCENARIOS", ""),
-    "legal":     os.getenv("SUPERMEMORY_SPACE_LEGAL",     ""),
-    "docs":      os.getenv("SUPERMEMORY_SPACE_DOCS",      ""),
+    "legal": os.getenv("SUPERMEMORY_SPACE_LEGAL", ""),
+    "docs": os.getenv("SUPERMEMORY_SPACE_DOCS", ""),
 }
 
 
@@ -175,6 +175,7 @@ class SupermemoryClient:
 # ------------------------------------------------------------------ #
 #  Convenience: persist APEX decision into ops space                   #
 # ------------------------------------------------------------------ #
+
 
 def record_apex_decision(
     client: SupermemoryClient,

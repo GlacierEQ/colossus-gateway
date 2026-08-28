@@ -4,10 +4,8 @@ Runs against real clients when env vars are set;
 falls back to mock/skip when keys are absent.
 """
 
-import os
-import json
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 # ------------------------------------------------------------------ #
@@ -20,24 +18,41 @@ FAKE_EMBEDDING = [0.01] * 1536
 @pytest.fixture()
 def mock_pinecone_client():
     client = MagicMock()
-    client.health_check.return_value = {"platform": "pinecone", "status": "ok", "total_vectors": 42}
+    client.health_check.return_value = {
+        "platform": "pinecone",
+        "status": "ok",
+        "total_vectors": 42,
+    }
     client.upsert.return_value = {"platform": "pinecone", "upserted": 1}
-    client.query.return_value = [{"id": "abc", "score": 0.95, "metadata": {"text": "test"}}]
+    client.query.return_value = [
+        {"id": "abc", "score": 0.95, "metadata": {"text": "test"}}
+    ]
     return client
 
 
 @pytest.fixture()
 def mock_supermemory_client():
     client = MagicMock()
-    client.health_check.return_value = {"platform": "supermemory", "status": "ok", "latency_ms": 40}
-    client.write.return_value = {"platform": "supermemory", "memory_id": "mem_abc", "status": "written"}
-    client.search.return_value = [{"id": "mem_abc", "score": 0.9, "content": "test", "tags": ["ops"]}]
+    client.health_check.return_value = {
+        "platform": "supermemory",
+        "status": "ok",
+        "latency_ms": 40,
+    }
+    client.write.return_value = {
+        "platform": "supermemory",
+        "memory_id": "mem_abc",
+        "status": "written",
+    }
+    client.search.return_value = [
+        {"id": "mem_abc", "score": 0.9, "content": "test", "tags": ["ops"]}
+    ]
     return client
 
 
 # ------------------------------------------------------------------ #
 #  Health check                                                         #
 # ------------------------------------------------------------------ #
+
 
 def test_health_check_all_ok(mock_pinecone_client, mock_supermemory_client):
     from src.memory.memory_router import MemoryRouter
@@ -55,7 +70,11 @@ def test_health_check_all_ok(mock_pinecone_client, mock_supermemory_client):
 def test_health_check_degraded(mock_pinecone_client, mock_supermemory_client):
     from src.memory.memory_router import MemoryRouter
 
-    mock_pinecone_client.health_check.return_value = {"platform": "pinecone", "status": "error", "error": "timeout"}
+    mock_pinecone_client.health_check.return_value = {
+        "platform": "pinecone",
+        "status": "error",
+        "error": "timeout",
+    }
 
     router = MemoryRouter.__new__(MemoryRouter)
     router._pinecone = mock_pinecone_client
@@ -68,6 +87,7 @@ def test_health_check_degraded(mock_pinecone_client, mock_supermemory_client):
 # ------------------------------------------------------------------ #
 #  Scenario persistence                                                 #
 # ------------------------------------------------------------------ #
+
 
 def test_remember_scenario_dual_write(mock_pinecone_client, mock_supermemory_client):
     from src.memory.memory_router import MemoryRouter
@@ -99,6 +119,7 @@ def test_remember_scenario_dual_write(mock_pinecone_client, mock_supermemory_cli
 #  Decision recording                                                   #
 # ------------------------------------------------------------------ #
 
+
 def test_record_decision(mock_supermemory_client):
     from src.memory.memory_router import MemoryRouter
 
@@ -123,6 +144,7 @@ def test_record_decision(mock_supermemory_client):
 # ------------------------------------------------------------------ #
 #  Recall (search)                                                      #
 # ------------------------------------------------------------------ #
+
 
 def test_recall_both_backends(mock_pinecone_client, mock_supermemory_client):
     from src.memory.memory_router import MemoryRouter
@@ -150,5 +172,8 @@ def test_recall_supermemory_only_no_embedding(mock_supermemory_client):
     router._supermemory = mock_supermemory_client
 
     result = router.recall(query="turbine trip", embedding=None)
-    assert "pinecone" not in result["backends"] or result["backends"].get("pinecone") is None
+    assert (
+        "pinecone" not in result["backends"]
+        or result["backends"].get("pinecone") is None
+    )
     assert result["backends"]["supermemory"][0]["content"] == "test"

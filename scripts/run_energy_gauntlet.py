@@ -11,6 +11,7 @@ Usage
   python scripts/run_energy_gauntlet.py --fail-on-critical
   python scripts/run_energy_gauntlet.py --json
 """
+
 import argparse
 import json
 import os
@@ -36,7 +37,7 @@ def build_synthetic_cluster(
         feeder_id = f"F-{(i % FEEDER_COUNT) + 1}"
         racks.append(
             RackLoad(
-                rack_id=f"R-{i+1:03d}",
+                rack_id=f"R-{i + 1:03d}",
                 gpu_count=gpu_per_rack,
                 tdp_per_gpu_w=tdp_per_gpu_w,
                 utilization=utilization,
@@ -94,21 +95,34 @@ def main() -> int:
         CRITICAL_SCENARIOS = {"training_surge", "substation_overload"}
         col_w = [30, 8, 10, 10, 10, 12]
         header = [
-            "Scenario", "Status", "Load MW", "Limit MW",
-            "Headroom", "Shed Rec MW"
+            "Scenario",
+            "Status",
+            "Load MW",
+            "Limit MW",
+            "Headroom",
+            "Shed Rec MW",
         ]
         sep = "-" * sum(col_w)
         print("\n╔═ COLOSSUS ENERGY GAUNTLET ═══════════════════════════════╗")
-        print(f"  Grid limit: {GRID_LIMIT_MW} MW  |  Feeders: {FEEDER_COUNT}  |  Racks: {len(racks)}")
+        print(
+            f"  Grid limit: {GRID_LIMIT_MW} MW  |  Feeders: {FEEDER_COUNT}  |  Racks: {len(racks)}"
+        )
         print("═" * 62)
         print("  " + "  ".join(h.ljust(w) for h, w in zip(header, col_w)))
         print("  " + sep)
         for r in results:
-            tag = " ⚠ CRITICAL" if not r.passed and r.scenario_name in CRITICAL_SCENARIOS else ""
+            tag = (
+                " ⚠ CRITICAL"
+                if not r.passed and r.scenario_name in CRITICAL_SCENARIOS
+                else ""
+            )
             row = [
-                r.scenario_name, r.status,
-                f"{r.peak_load_mw:.1f}", f"{r.grid_limit_mw:.1f}",
-                f"{r.headroom_mw:.1f}", f"{r.shed_recommendation_mw:.1f}",
+                r.scenario_name,
+                r.status,
+                f"{r.peak_load_mw:.1f}",
+                f"{r.grid_limit_mw:.1f}",
+                f"{r.headroom_mw:.1f}",
+                f"{r.shed_recommendation_mw:.1f}",
             ]
             print("  " + "  ".join(v.ljust(w) for v, w in zip(row, col_w)) + tag)
         print("╚" + "═" * 61 + "╝\n")
@@ -116,7 +130,9 @@ def main() -> int:
     # Exit code
     if args.fail_on_critical:
         CRITICAL_SCENARIOS = {"training_surge", "substation_overload"}
-        failed_critical = [r for r in results if not r.passed and r.scenario_name in CRITICAL_SCENARIOS]
+        failed_critical = [
+            r for r in results if not r.passed and r.scenario_name in CRITICAL_SCENARIOS
+        ]
         if failed_critical:
             names = ", ".join(r.scenario_name for r in failed_critical)
             print(f"[FAIL] Critical scenarios failed: {names}", file=sys.stderr)

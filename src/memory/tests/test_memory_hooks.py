@@ -5,7 +5,7 @@ test_memory_hooks.py — Unit tests for memory_hooks.py
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 from src.memory.memory_hooks import (
     gauntlet_memory,
     GauntletSession,
@@ -20,6 +20,7 @@ from src.memory.memory_hooks import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_router():
     router = MagicMock()
@@ -31,20 +32,26 @@ def mock_router():
 # _is_pass tests
 # ---------------------------------------------------------------------------
 
+
 def test_is_pass_true():
     assert _is_pass({"status": "PASS"}) is True
+
 
 def test_is_pass_false():
     assert _is_pass({"status": "FAIL"}) is False
 
+
 def test_is_pass_bool_true():
     assert _is_pass(True) is True
+
 
 def test_is_pass_none():
     assert _is_pass(None) is False
 
+
 def test_is_pass_dict_ok():
     assert _is_pass({"ok": True}) is True
+
 
 def test_is_pass_unknown_dict():
     # dict with no known keys → default pass
@@ -54,6 +61,7 @@ def test_is_pass_unknown_dict():
 # ---------------------------------------------------------------------------
 # @gauntlet_memory decorator
 # ---------------------------------------------------------------------------
+
 
 def test_decorator_records_pass(mock_router):
     @gauntlet_memory(scenario_type="energy", tags=["feeder"], router=mock_router)
@@ -108,6 +116,7 @@ def test_decorator_injects_prior_context(mock_router):
 
 def test_decorator_no_router_graceful():
     """Should run fine with no router — memory calls are skipped."""
+
     @gauntlet_memory(scenario_type="cooling", router=None, fail_silent=True)
     def run_gauntlet(**kwargs):
         return {"status": "PASS"}
@@ -120,6 +129,7 @@ def test_decorator_no_router_graceful():
 # ---------------------------------------------------------------------------
 # GauntletSession context manager
 # ---------------------------------------------------------------------------
+
 
 def test_session_record(mock_router):
     with GauntletSession("cooling", tags=["pump"], router=mock_router) as session:
@@ -144,6 +154,7 @@ def test_session_records_error_on_exception(mock_router):
 # recall_last_incident
 # ---------------------------------------------------------------------------
 
+
 def test_recall_returns_top_hit(mock_router):
     result = recall_last_incident(scenario_type="energy", router=mock_router)
     assert result is not None
@@ -165,6 +176,7 @@ def test_recall_router_exception(mock_router):
 # apex_decision
 # ---------------------------------------------------------------------------
 
+
 def test_apex_decision_writes(mock_router):
     apex_decision(
         decision_type="load_shed",
@@ -185,6 +197,7 @@ def test_apex_decision_no_router():
 # ---------------------------------------------------------------------------
 # ej_event
 # ---------------------------------------------------------------------------
+
 
 def test_ej_event_writes(mock_router):
     ej_event(

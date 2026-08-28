@@ -31,10 +31,9 @@ Patch catalogue:
 from __future__ import annotations
 
 import importlib
-import types
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from src.memory.memory_hooks import gauntlet_memory, ej_event, apex_decision
+from src.memory.memory_hooks import gauntlet_memory
 
 
 # ---------------------------------------------------------------------------
@@ -44,28 +43,89 @@ from src.memory.memory_hooks import gauntlet_memory, ej_event, apex_decision
 # Each entry: (module_path, function_name, scenario_type, tags)
 PATCH_REGISTRY: List[tuple] = [
     # xai-colossus-energy
-    ("xai_colossus_energy.gauntlets.feeder",     "run_feeder_overload",     "energy",   ["feeder", "N-1", "grid"]),
-    ("xai_colossus_energy.gauntlets.training",   "run_training_surge",      "energy",   ["training", "surge", "grid"]),
-    ("xai_colossus_energy.gauntlets.turbine",    "run_turbine_trip",        "energy",   ["turbine", "generation", "grid"]),
-    ("xai_colossus_energy.gauntlets.solar",      "run_solar_curtailment",   "energy",   ["solar", "renewables"]),
-
+    (
+        "xai_colossus_energy.gauntlets.feeder",
+        "run_feeder_overload",
+        "energy",
+        ["feeder", "N-1", "grid"],
+    ),
+    (
+        "xai_colossus_energy.gauntlets.training",
+        "run_training_surge",
+        "energy",
+        ["training", "surge", "grid"],
+    ),
+    (
+        "xai_colossus_energy.gauntlets.turbine",
+        "run_turbine_trip",
+        "energy",
+        ["turbine", "generation", "grid"],
+    ),
+    (
+        "xai_colossus_energy.gauntlets.solar",
+        "run_solar_curtailment",
+        "energy",
+        ["solar", "renewables"],
+    ),
     # xai-colossus-servers
-    ("xai_colossus_servers.gauntlets.rack",      "run_rack_failure",        "servers",  ["rack", "hardware", "N-1"]),
-    ("xai_colossus_servers.gauntlets.firmware",  "run_firmware_gauntlet",   "servers",  ["firmware", "security"]),
-    ("xai_colossus_servers.gauntlets.thermal",   "run_thermal_runaway",     "servers",  ["thermal", "emergency"]),
-
+    (
+        "xai_colossus_servers.gauntlets.rack",
+        "run_rack_failure",
+        "servers",
+        ["rack", "hardware", "N-1"],
+    ),
+    (
+        "xai_colossus_servers.gauntlets.firmware",
+        "run_firmware_gauntlet",
+        "servers",
+        ["firmware", "security"],
+    ),
+    (
+        "xai_colossus_servers.gauntlets.thermal",
+        "run_thermal_runaway",
+        "servers",
+        ["thermal", "emergency"],
+    ),
     # xai-colossus-cooling
-    ("xai_colossus_cooling.gauntlets.hot_aisle", "run_hot_aisle_overtemp",  "cooling",  ["thermal", "hot-aisle"]),
-    ("xai_colossus_cooling.gauntlets.pump",      "run_pump_failure",        "cooling",  ["pump", "N-1"]),
-    ("xai_colossus_cooling.gauntlets.water",     "run_water_restriction",   "cooling",  ["water", "ej", "permitting"]),
-
+    (
+        "xai_colossus_cooling.gauntlets.hot_aisle",
+        "run_hot_aisle_overtemp",
+        "cooling",
+        ["thermal", "hot-aisle"],
+    ),
+    (
+        "xai_colossus_cooling.gauntlets.pump",
+        "run_pump_failure",
+        "cooling",
+        ["pump", "N-1"],
+    ),
+    (
+        "xai_colossus_cooling.gauntlets.water",
+        "run_water_restriction",
+        "cooling",
+        ["water", "ej", "permitting"],
+    ),
     # xai-colossus-security
-    ("xai_colossus_security.gauntlets.config",   "run_config_drift_check",  "security", ["config", "drift", "audit"]),
-    ("xai_colossus_security.gauntlets.access",   "run_access_audit",        "security", ["access", "iam"]),
-
+    (
+        "xai_colossus_security.gauntlets.config",
+        "run_config_drift_check",
+        "security",
+        ["config", "drift", "audit"],
+    ),
+    (
+        "xai_colossus_security.gauntlets.access",
+        "run_access_audit",
+        "security",
+        ["access", "iam"],
+    ),
     # DOCTOR-STRANGE / APEX
-    ("doctor_strange.apex.orchestrator",         "run_apex_loop",           "apex",     ["orchestration", "swarm"]),
-    ("doctor_strange.apex.gap_detector",         "run_gap_scan",            "apex",     ["gaps", "coverage"]),
+    (
+        "doctor_strange.apex.orchestrator",
+        "run_apex_loop",
+        "apex",
+        ["orchestration", "swarm"],
+    ),
+    ("doctor_strange.apex.gap_detector", "run_gap_scan", "apex", ["gaps", "coverage"]),
 ]
 
 
@@ -122,6 +182,7 @@ def _print_patch_summary(results: Dict[str, bool]) -> None:
 # Stand-alone patched gauntlet stubs
 # (copy these into each repo as drop-in replacements when modules are ready)
 # ---------------------------------------------------------------------------
+
 
 @gauntlet_memory(scenario_type="energy", tags=["feeder", "N-1", "grid"])
 def patched_energy_feeder_overload(params: Dict[str, Any], prior_context=None) -> Dict:

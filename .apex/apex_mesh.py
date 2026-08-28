@@ -47,6 +47,7 @@ def _save_json(path: Path, data: Any) -> None:
 
 # ── Data Models ───────────────────────────────────────────────────────────────
 
+
 @dataclass
 class MeshNode:
     name: str
@@ -57,13 +58,15 @@ class MeshNode:
     last_check: Optional[float] = None
     latency_ms: Optional[float] = None
 
+
 @dataclass
 class MeshEvent:
     event_type: str
     source: str
     data: Dict[str, Any]
     timestamp: float = field(default_factory=time.time)
-    event_id: str = field(default_factory=lambda: f"evt-{int(time.time()*1000)}")
+    event_id: str = field(default_factory=lambda: f"evt-{int(time.time() * 1000)}")
+
 
 @dataclass
 class Runbook:
@@ -74,6 +77,7 @@ class Runbook:
 
 
 # ── Mesh ──────────────────────────────────────────────────────────────────────
+
 
 class Mesh:
     """
@@ -101,7 +105,10 @@ class Mesh:
 
     def _load_topology(self) -> Dict:
         """Load mesh topology from .apex/mesh/topology.json"""
-        for search in [REPO_APEX_DIR / "mesh" / "topology.json", MESH_DIR / "topology.json"]:
+        for search in [
+            REPO_APEX_DIR / "mesh" / "topology.json",
+            MESH_DIR / "topology.json",
+        ]:
             data = _load_json(search)
             if data:
                 return data
@@ -134,7 +141,11 @@ class Mesh:
 
     def get_tier(self, tier: int) -> List[str]:
         """Get all repos at a specific tier level."""
-        return [name for name, info in self._ecosystem.get("repos", {}).items() if info.get("tier") == tier]
+        return [
+            name
+            for name, info in self._ecosystem.get("repos", {}).items()
+            if info.get("tier") == tier
+        ]
 
     # ── Health ────────────────────────────────────────────────────────────
 
@@ -160,11 +171,17 @@ class Mesh:
             results[name] = node.healthy
 
         # Save health state
-        _save_json(MESH_DIR / "health.json", {
-            "last_check": time.time(),
-            "nodes": {n: {"healthy": node.healthy, "latency_ms": node.latency_ms} for n, node in self._nodes.items()},
-            "overall_status": "healthy" if all(results.values()) else "degraded",
-        })
+        _save_json(
+            MESH_DIR / "health.json",
+            {
+                "last_check": time.time(),
+                "nodes": {
+                    n: {"healthy": node.healthy, "latency_ms": node.latency_ms}
+                    for n, node in self._nodes.items()
+                },
+                "overall_status": "healthy" if all(results.values()) else "degraded",
+            },
+        )
 
         return results
 
@@ -183,7 +200,18 @@ class Mesh:
         log_path = OPS_DIR / "events.jsonl"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(log_path, "a") as f:
-            f.write(json.dumps({"id": event.event_id, "type": event.event_type, "source": event.source, "data": event.data, "ts": event.timestamp}) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "id": event.event_id,
+                        "type": event.event_type,
+                        "source": event.source,
+                        "data": event.data,
+                        "ts": event.timestamp,
+                    }
+                )
+                + "\n"
+            )
 
         # Trigger local handlers
         for handler in self._handlers.get(event_type, []) + self._handlers.get("*", []):
@@ -198,7 +226,9 @@ class Mesh:
         """Register an event handler."""
         self._handlers.setdefault(event_type, []).append(handler)
 
-    def get_events(self, event_type: Optional[str] = None, limit: int = 50) -> List[Dict]:
+    def get_events(
+        self, event_type: Optional[str] = None, limit: int = 50
+    ) -> List[Dict]:
         """Read recent events from the log."""
         log_path = OPS_DIR / "events.jsonl"
         if not log_path.exists():
@@ -220,7 +250,9 @@ class Mesh:
 
     # ── Invocation ────────────────────────────────────────────────────────
 
-    def invoke(self, node_name: str, capability: str, params: Dict[str, Any] = None) -> Dict:
+    def invoke(
+        self, node_name: str, capability: str, params: Dict[str, Any] = None
+    ) -> Dict:
         """Invoke a capability on a remote mesh node via HTTP."""
         import urllib.request
 
@@ -244,18 +276,29 @@ class Mesh:
     def get_runbook(self, name: str) -> Optional[Runbook]:
         """Load a runbook by name."""
         runbooks = {}
-        for search in [REPO_APEX_DIR / "ops" / "runbooks.json", OPS_DIR / "runbooks.json"]:
+        for search in [
+            REPO_APEX_DIR / "ops" / "runbooks.json",
+            OPS_DIR / "runbooks.json",
+        ]:
             runbooks = _load_json(search).get("runbooks", {})
             if runbooks:
                 break
         rb = runbooks.get(name)
         if not rb:
             return None
-        return Runbook(name=name, trigger=rb.get("trigger", ""), steps=rb.get("steps", []), escalation=rb.get("escalation", ""))
+        return Runbook(
+            name=name,
+            trigger=rb.get("trigger", ""),
+            steps=rb.get("steps", []),
+            escalation=rb.get("escalation", ""),
+        )
 
     def list_runbooks(self) -> List[str]:
         """List all available runbooks."""
-        for search in [REPO_APEX_DIR / "ops" / "runbooks.json", OPS_DIR / "runbooks.json"]:
+        for search in [
+            REPO_APEX_DIR / "ops" / "runbooks.json",
+            OPS_DIR / "runbooks.json",
+        ]:
             runbooks = _load_json(search).get("runbooks", {})
             if runbooks:
                 return list(runbooks.keys())
@@ -294,10 +337,15 @@ class Mesh:
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="APEX Mesh Intelligence")
-    parser.add_argument("action", choices=["discover", "health", "context", "events", "runbooks", "invoke"])
+    parser.add_argument(
+        "action",
+        choices=["discover", "health", "context", "events", "runbooks", "invoke"],
+    )
     parser.add_argument("--node", type=str, help="Target node")
     parser.add_argument("--capability", type=str, help="Capability to invoke")
     parser.add_argument("--repo", type=str, default="cli", help="Source repo name")
@@ -327,7 +375,9 @@ def main():
     elif args.action == "events":
         events = mesh.get_events(limit=20)
         for e in events:
-            print(f"  [{e.get('type')}] {e.get('source')}: {json.dumps(e.get('data', {}))[:80]}")
+            print(
+                f"  [{e.get('type')}] {e.get('source')}: {json.dumps(e.get('data', {}))[:80]}"
+            )
 
     elif args.action == "runbooks":
         for name in mesh.list_runbooks():

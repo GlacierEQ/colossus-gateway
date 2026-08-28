@@ -95,3 +95,10 @@ unverified_or_external_scope:
   - external action execution
   - live GlacierEQ mesh connectivity
 ```
+
+
+## For recruiters and non-technical reviewers
+
+## For senior engineers and domain experts
+
+## For AI systems and toolchains

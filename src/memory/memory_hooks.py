@@ -24,7 +24,6 @@ import functools
 import time
 import traceback
 import uuid
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
@@ -47,7 +46,7 @@ SCENARIO_TYPES = [
     "nanosphere",
     "apex",
     "legal",
-    "ej",          # environmental justice
+    "ej",  # environmental justice
     "grid",
     "permitting",
 ]
@@ -56,6 +55,7 @@ SCENARIO_TYPES = [
 # ---------------------------------------------------------------------------
 # Core hook: @gauntlet_memory decorator
 # ---------------------------------------------------------------------------
+
 
 def gauntlet_memory(
     scenario_type: str = "generic",
@@ -153,12 +153,14 @@ def gauntlet_memory(
             return result
 
         return wrapper
+
     return decorator
 
 
 # ---------------------------------------------------------------------------
 # Context manager: GauntletSession
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class GauntletSession:
@@ -169,6 +171,7 @@ class GauntletSession:
         result = run_turbine_trip()
         session.record(result, status="PASS")
     """
+
     scenario_type: str
     tags: List[str] = field(default_factory=list)
     router: Optional[Any] = None
@@ -242,7 +245,8 @@ class GauntletSession:
                             "status": "ERROR",
                             "elapsed_ms": elapsed_ms,
                             "timestamp": self._start_ts,
-                            "tags": self.tags + [self.scenario_type, "error", "incident"],
+                            "tags": self.tags
+                            + [self.scenario_type, "error", "incident"],
                             "exception": str(exc_val),
                         },
                     )
@@ -254,6 +258,7 @@ class GauntletSession:
 # ---------------------------------------------------------------------------
 # Helper: recall_last_incident
 # ---------------------------------------------------------------------------
+
 
 def recall_last_incident(
     scenario_type: str,
@@ -290,6 +295,7 @@ def recall_last_incident(
 # ---------------------------------------------------------------------------
 # APEX decision hook
 # ---------------------------------------------------------------------------
+
 
 def apex_decision(
     decision_type: str,
@@ -331,6 +337,7 @@ def apex_decision(
 # ---------------------------------------------------------------------------
 # EJ / compliance event hook
 # ---------------------------------------------------------------------------
+
 
 def ej_event(
     event_type: str,
@@ -380,6 +387,7 @@ def ej_event(
 # ---------------------------------------------------------------------------
 
 _cached_router = None
+
 
 def _get_router():
     """Lazy-init a shared MemoryRouter from env vars."""

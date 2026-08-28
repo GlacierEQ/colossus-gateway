@@ -10,9 +10,9 @@ Each connector follows the same interface:
 from __future__ import annotations
 import os
 import time
-import json
 import httpx
 from typing import Any, Optional
+
 
 # ─────────────────────────────────────────────
 # Base
@@ -24,7 +24,11 @@ class BaseConnector:
         raise NotImplementedError
 
     def _ok(self, latency_ms: float) -> dict:
-        return {"connector": self.name, "status": "ok", "latency_ms": round(latency_ms, 1)}
+        return {
+            "connector": self.name,
+            "status": "ok",
+            "latency_ms": round(latency_ms, 1),
+        }
 
     def _err(self, msg: str) -> dict:
         return {"connector": self.name, "status": "error", "error": msg}
@@ -60,7 +64,9 @@ class GitHubConnector(BaseConnector):
         r.raise_for_status()
         return r.json()
 
-    def create_issue(self, owner: str, repo: str, title: str, body: str = "", labels: list = []) -> dict:
+    def create_issue(
+        self, owner: str, repo: str, title: str, body: str = "", labels: list = []
+    ) -> dict:
         r = httpx.post(
             f"{self.base}/repos/{owner}/{repo}/issues",
             headers=self.headers,
@@ -105,16 +111,23 @@ class NotionConnector(BaseConnector):
     def create_page(self, parent_id: str, title: str, body_md: str = "") -> dict:
         payload = {
             "parent": {"database_id": parent_id},
-            "properties": {
-                "title": {"title": [{"text": {"content": title}}]}
-            },
+            "properties": {"title": {"title": [{"text": {"content": title}}]}},
         }
         if body_md:
             payload["children"] = [
-                {"object": "block", "type": "paragraph",
-                 "paragraph": {"rich_text": [{"type": "text", "text": {"content": body_md[:2000]}}]}}
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {"type": "text", "text": {"content": body_md[:2000]}}
+                        ]
+                    },
+                }
             ]
-        r = httpx.post(f"{self.base}/pages", headers=self.headers, json=payload, timeout=15)
+        r = httpx.post(
+            f"{self.base}/pages", headers=self.headers, json=payload, timeout=15
+        )
         r.raise_for_status()
         return r.json()
 
@@ -212,6 +225,7 @@ class MotherDuckConnector(BaseConnector):
         self.token = os.environ["MOTHERDUCK_TOKEN"]
         # Lazy import to avoid hard dep at module load
         import duckdb
+
         self._duckdb = duckdb
         self._conn: Any = None
 
@@ -250,7 +264,7 @@ class AirtableConnector(BaseConnector):
     def health(self) -> dict:
         t0 = time.monotonic()
         r = httpx.get(
-            f"https://api.airtable.com/v0/meta/bases",
+            "https://api.airtable.com/v0/meta/bases",
             headers=self.headers,
             params={"pageSize": 1},
             timeout=8,
@@ -297,7 +311,9 @@ class ClickUpConnector(BaseConnector):
         r.raise_for_status()
         return self._ok((time.monotonic() - t0) * 1000)
 
-    def create_task(self, list_id: str, name: str, description: str = "", priority: int = 3) -> dict:
+    def create_task(
+        self, list_id: str, name: str, description: str = "", priority: int = 3
+    ) -> dict:
         r = httpx.post(
             f"{self.base}/list/{list_id}/task",
             headers=self.headers,
@@ -341,15 +357,15 @@ class GoogleDocsConnector(BaseConnector):
         return self._ok((time.monotonic() - t0) * 1000)
 
     def get_doc(self, doc_id: str) -> dict:
-        r = httpx.get(f"{self.base}/documents/{doc_id}", headers=self.headers, timeout=15)
+        r = httpx.get(
+            f"{self.base}/documents/{doc_id}", headers=self.headers, timeout=15
+        )
         r.raise_for_status()
         return r.json()
 
     def append_text(self, doc_id: str, text: str) -> dict:
         payload = {
-            "requests": [
-                {"insertText": {"location": {"index": 1}, "text": text}}
-            ]
+            "requests": [{"insertText": {"location": {"index": 1}, "text": text}}]
         }
         r = httpx.post(
             f"{self.base}/documents/{doc_id}:batchUpdate",
@@ -420,7 +436,12 @@ class OneNoteConnector(BaseConnector):
 
     def health(self) -> dict:
         t0 = time.monotonic()
-        r = httpx.get(f"{self.base}/notebooks", headers=self.headers, params={"$top": 1}, timeout=8)
+        r = httpx.get(
+            f"{self.base}/notebooks",
+            headers=self.headers,
+            params={"$top": 1},
+            timeout=8,
+        )
         r.raise_for_status()
         return self._ok((time.monotonic() - t0) * 1000)
 
@@ -453,12 +474,14 @@ class PineconeConnector(BaseConnector):
     def __init__(self):
         self.api_key = os.environ["PINECONE_API_KEY"]
         self.index_name = os.environ.get("PINECONE_INDEX", "colossus-apex")
-        self.base = f"https://api.pinecone.io"
+        self.base = "https://api.pinecone.io"
         self.headers = {"Api-Key": self.api_key, "Content-Type": "application/json"}
 
     def health(self) -> dict:
         t0 = time.monotonic()
-        r = httpx.get(f"{self.base}/indexes/{self.index_name}", headers=self.headers, timeout=8)
+        r = httpx.get(
+            f"{self.base}/indexes/{self.index_name}", headers=self.headers, timeout=8
+        )
         r.raise_for_status()
         return self._ok((time.monotonic() - t0) * 1000)
 
@@ -475,11 +498,18 @@ class PineconeConnector(BaseConnector):
         r.raise_for_status()
         return r.json()
 
-    def query(self, vector: list, top_k: int = 5, namespace: str = "colossus-scenarios") -> list:
+    def query(
+        self, vector: list, top_k: int = 5, namespace: str = "colossus-scenarios"
+    ) -> list:
         r = httpx.post(
             f"{self.base}/query",
             headers=self.headers,
-            json={"vector": vector, "topK": top_k, "namespace": namespace, "includeMetadata": True},
+            json={
+                "vector": vector,
+                "topK": top_k,
+                "namespace": namespace,
+                "includeMetadata": True,
+            },
             timeout=15,
         )
         r.raise_for_status()
@@ -517,7 +547,9 @@ class QdrantConnector(BaseConnector):
         r.raise_for_status()
         return r.json()
 
-    def search(self, vector: list, limit: int = 5, filter_: Optional[dict] = None) -> list:
+    def search(
+        self, vector: list, limit: int = 5, filter_: Optional[dict] = None
+    ) -> list:
         payload: dict = {"vector": vector, "limit": limit, "with_payload": True}
         if filter_:
             payload["filter"] = filter_
@@ -541,11 +573,16 @@ class SentryConnector(BaseConnector):
         self.token = os.environ["SENTRY_AUTH_TOKEN"]
         self.org = os.environ.get("SENTRY_ORG", "glaciereq")
         self.base = "https://sentry.io/api/0"
-        self.headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+        }
 
     def health(self) -> dict:
         t0 = time.monotonic()
-        r = httpx.get(f"{self.base}/organizations/{self.org}/", headers=self.headers, timeout=8)
+        r = httpx.get(
+            f"{self.base}/organizations/{self.org}/", headers=self.headers, timeout=8
+        )
         r.raise_for_status()
         return self._ok((time.monotonic() - t0) * 1000)
 
@@ -559,11 +596,18 @@ class SentryConnector(BaseConnector):
         r.raise_for_status()
         return r.json()
 
-    def create_alert_rule(self, project: str, name: str, conditions: list, actions: list) -> dict:
+    def create_alert_rule(
+        self, project: str, name: str, conditions: list, actions: list
+    ) -> dict:
         r = httpx.post(
             f"{self.base}/projects/{self.org}/{project}/alert-rules/",
             headers=self.headers,
-            json={"name": name, "conditions": conditions, "actions": actions, "actionMatch": "all"},
+            json={
+                "name": name,
+                "conditions": conditions,
+                "actions": actions,
+                "actionMatch": "all",
+            },
             timeout=15,
         )
         r.raise_for_status()
@@ -594,7 +638,9 @@ def get_connector(name: str) -> BaseConnector:
     """Return an initialized connector by name."""
     cls = CONNECTOR_MAP.get(name)
     if cls is None:
-        raise ValueError(f"Unknown connector: {name!r}. Available: {list(CONNECTOR_MAP.keys())}")
+        raise ValueError(
+            f"Unknown connector: {name!r}. Available: {list(CONNECTOR_MAP.keys())}"
+        )
     return cls()
 
 
@@ -607,7 +653,11 @@ def health_check_all(skip_on_missing_env: bool = True) -> dict:
             results[name] = conn.health()
         except KeyError as e:
             if skip_on_missing_env:
-                results[name] = {"connector": name, "status": "skipped", "reason": f"missing env: {e}"}
+                results[name] = {
+                    "connector": name,
+                    "status": "skipped",
+                    "reason": f"missing env: {e}",
+                }
             else:
                 raise
         except Exception as exc:

@@ -27,20 +27,24 @@ except ImportError:
 
 
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
-PINECONE_INDEX   = os.getenv("PINECONE_INDEX", "colossus-apex")
-PINECONE_ENV     = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")  # AWS region for serverless
-EMBED_DIM        = int(os.getenv("PINECONE_EMBED_DIM", "1536"))     # text-embedding-3-small default
+PINECONE_INDEX = os.getenv("PINECONE_INDEX", "colossus-apex")
+PINECONE_ENV = os.getenv(
+    "PINECONE_ENVIRONMENT", "us-east-1"
+)  # AWS region for serverless
+EMBED_DIM = int(
+    os.getenv("PINECONE_EMBED_DIM", "1536")
+)  # text-embedding-3-small default
 
 
 class PineconeClient:
     """Thin wrapper around Pinecone v3 SDK with Colossus-specific conventions."""
 
     NAMESPACES = {
-        "docs":     "colossus-docs",       # architecture, APEX matrices
-        "legal":    "colossus-legal",      # EJ findings, CAA, 42 USC 1983
+        "docs": "colossus-docs",  # architecture, APEX matrices
+        "legal": "colossus-legal",  # EJ findings, CAA, 42 USC 1983
         "incident": "colossus-incidents",  # gauntlet failures, alerts
         "scenario": "colossus-scenarios",  # APEX scenario outcomes
-        "memory":   "colossus-memory",     # agent short-term bridging
+        "memory": "colossus-memory",  # agent short-term bridging
     }
 
     def __init__(self):
@@ -149,6 +153,7 @@ class PineconeClient:
 #  Convenience: store an APEX scenario result                           #
 # ------------------------------------------------------------------ #
 
+
 def store_scenario(
     client: PineconeClient,
     scenario_id: str,
@@ -166,7 +171,7 @@ def store_scenario(
         "scenario_id": scenario_id,
         "repo": repo,
         "scenario_name": scenario_name,
-        "result": result,          # PASS | FAIL | DEGRADED
+        "result": result,  # PASS | FAIL | DEGRADED
         "metrics": json.dumps(metrics),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

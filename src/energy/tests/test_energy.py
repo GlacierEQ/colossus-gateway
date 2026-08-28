@@ -1,7 +1,7 @@
 """
 Unit tests: xai-colossus-energy powerflow + scenario engine
 """
-import pytest
+
 from src.energy.powerflow import PowerflowModel, RackLoad, FEEDER_COUNT
 from src.energy.scenario_engine import EnergyScenarioEngine
 
@@ -9,7 +9,7 @@ from src.energy.scenario_engine import EnergyScenarioEngine
 def _small_cluster(rack_count: int = 8, utilization: float = 0.85) -> list[RackLoad]:
     return [
         RackLoad(
-            rack_id=f"R-{i+1:02d}",
+            rack_id=f"R-{i + 1:02d}",
             gpu_count=8,
             tdp_per_gpu_w=700.0,
             utilization=utilization,
@@ -21,28 +21,61 @@ def _small_cluster(rack_count: int = 8, utilization: float = 0.85) -> list[RackL
 
 # ── PowerflowModel ────────────────────────────────────────────────────────
 
+
 class TestPowerflowModel:
     def test_load_calculation(self):
         m = PowerflowModel(grid_limit_mw=1100.0)
-        m.add_rack(RackLoad(rack_id="R-01", gpu_count=8, tdp_per_gpu_w=700.0, utilization=1.0, feeder_id="F-1"))
+        m.add_rack(
+            RackLoad(
+                rack_id="R-01",
+                gpu_count=8,
+                tdp_per_gpu_w=700.0,
+                utilization=1.0,
+                feeder_id="F-1",
+            )
+        )
         # 8 * 700W = 5600W = 5.6 kW = 0.0056 MW
         assert abs(m.total_load_mw - 0.0056) < 0.0001
 
     def test_headroom(self):
         m = PowerflowModel(grid_limit_mw=1100.0)
-        m.add_rack(RackLoad(rack_id="R-01", gpu_count=8, tdp_per_gpu_w=700.0, utilization=1.0, feeder_id="F-1"))
+        m.add_rack(
+            RackLoad(
+                rack_id="R-01",
+                gpu_count=8,
+                tdp_per_gpu_w=700.0,
+                utilization=1.0,
+                feeder_id="F-1",
+            )
+        )
         assert m.total_headroom_mw < 1100.0
         assert m.total_headroom_mw > 0
 
     def test_no_alert_at_low_utilization(self):
         m = PowerflowModel(grid_limit_mw=1100.0)
         for i in range(8):
-            m.add_rack(RackLoad(rack_id=f"R-{i}", gpu_count=8, tdp_per_gpu_w=700.0, utilization=0.3, feeder_id="F-1"))
+            m.add_rack(
+                RackLoad(
+                    rack_id=f"R-{i}",
+                    gpu_count=8,
+                    tdp_per_gpu_w=700.0,
+                    utilization=0.3,
+                    feeder_id="F-1",
+                )
+            )
         assert not m.alert
 
     def test_n1_remove_rack(self):
         m = PowerflowModel(grid_limit_mw=1100.0)
-        m.add_rack(RackLoad(rack_id="R-01", gpu_count=8, tdp_per_gpu_w=700.0, utilization=1.0, feeder_id="F-1"))
+        m.add_rack(
+            RackLoad(
+                rack_id="R-01",
+                gpu_count=8,
+                tdp_per_gpu_w=700.0,
+                utilization=1.0,
+                feeder_id="F-1",
+            )
+        )
         load_before = m.total_load_mw
         m.remove_rack("R-01")
         assert m.total_load_mw < load_before
@@ -56,6 +89,7 @@ class TestPowerflowModel:
 
 
 # ── EnergyScenarioEngine ─────────────────────────────────────────────────
+
 
 class TestEnergyScenarioEngine:
     def setup_method(self):

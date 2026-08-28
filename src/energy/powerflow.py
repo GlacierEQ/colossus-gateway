@@ -4,12 +4,13 @@ xai-colossus-energy: Powerflow Model
 Per-rack → per-feeder → facility-level MW accounting.
 Consumed by the scenario engine and APEX memory writer.
 """
+
 from __future__ import annotations
 
 import os
 import json
 import logging
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class RackLoad:
     rack_id: str
     gpu_count: int
     tdp_per_gpu_w: float
-    utilization: float = 1.0          # 0.0–1.0
+    utilization: float = 1.0  # 0.0–1.0
     feeder_id: Optional[str] = None
 
     @property

@@ -1,4 +1,5 @@
 """Top-level discover entry for colossus-gateway nested modules."""
+
 from __future__ import annotations
 import importlib
 import importlib.util

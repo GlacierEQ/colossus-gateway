@@ -9,14 +9,14 @@ Simulates:
 
 Each ScenarioResult is written to memory via MemoryRouter.
 """
+
 from __future__ import annotations
 
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
-from .powerflow import PowerflowModel, RackLoad, GRID_LIMIT_MW, FEEDER_COUNT
+from .powerflow import PowerflowModel, RackLoad, GRID_LIMIT_MW
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,9 @@ class EnergyScenarioEngine:
     def scenario_n2_feeder(self) -> ScenarioResult:
         """Lose the two most-loaded feeders."""
         m = self._fresh_model()
-        sorted_feeders = sorted(m._feeders.values(), key=lambda f: f.load_mw, reverse=True)
+        sorted_feeders = sorted(
+            m._feeders.values(), key=lambda f: f.load_mw, reverse=True
+        )
         lost = []
         for feeder in sorted_feeders[:2]:
             lost.append(feeder.feeder_id)
@@ -169,7 +171,9 @@ class EnergyScenarioEngine:
             details={"lost_feeders": lost},
         )
 
-    def scenario_memphis_heatwave(self, cooling_derating: float = 0.15) -> ScenarioResult:
+    def scenario_memphis_heatwave(
+        self, cooling_derating: float = 0.15
+    ) -> ScenarioResult:
         """
         Simulate sustained Memphis summer heat: cooling capacity drops 15%,
         requiring GPU throttling to compensate.

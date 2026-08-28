@@ -32,7 +32,13 @@ log = logging.getLogger(__name__)
 class PatchedGauntlet:
     """Thin wrapper around a patched gauntlet module."""
 
-    def __init__(self, module: types.ModuleType, repo: str, scenario: str, tags: Optional[list[str]] = None):
+    def __init__(
+        self,
+        module: types.ModuleType,
+        repo: str,
+        scenario: str,
+        tags: Optional[list[str]] = None,
+    ):
         self._module = module
         self.repo = repo
         self.scenario = scenario

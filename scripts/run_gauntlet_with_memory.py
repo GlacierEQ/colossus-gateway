@@ -25,22 +25,42 @@ import sys
 from src.memory.gauntlet_patch import (
     patch_all,
     patch_report,
-    PATCH_REGISTRY,
 )
 from src.memory.memory_hooks import GauntletSession
 
 
 GAUNTLET_MAP = {
-    "energy.feeder_overload":    ("xai_colossus_energy.gauntlets.feeder",     "run_feeder_overload"),
-    "energy.training_surge":     ("xai_colossus_energy.gauntlets.training",   "run_training_surge"),
-    "energy.turbine_trip":       ("xai_colossus_energy.gauntlets.turbine",    "run_turbine_trip"),
-    "servers.rack_failure":      ("xai_colossus_servers.gauntlets.rack",      "run_rack_failure"),
-    "servers.firmware":          ("xai_colossus_servers.gauntlets.firmware",  "run_firmware_gauntlet"),
-    "cooling.hot_aisle":         ("xai_colossus_cooling.gauntlets.hot_aisle", "run_hot_aisle_overtemp"),
-    "cooling.pump_failure":      ("xai_colossus_cooling.gauntlets.pump",      "run_pump_failure"),
-    "cooling.water_restriction": ("xai_colossus_cooling.gauntlets.water",     "run_water_restriction"),
-    "security.config_drift":     ("xai_colossus_security.gauntlets.config",   "run_config_drift_check"),
-    "apex.orchestration":        ("doctor_strange.apex.orchestrator",         "run_apex_loop"),
+    "energy.feeder_overload": (
+        "xai_colossus_energy.gauntlets.feeder",
+        "run_feeder_overload",
+    ),
+    "energy.training_surge": (
+        "xai_colossus_energy.gauntlets.training",
+        "run_training_surge",
+    ),
+    "energy.turbine_trip": (
+        "xai_colossus_energy.gauntlets.turbine",
+        "run_turbine_trip",
+    ),
+    "servers.rack_failure": ("xai_colossus_servers.gauntlets.rack", "run_rack_failure"),
+    "servers.firmware": (
+        "xai_colossus_servers.gauntlets.firmware",
+        "run_firmware_gauntlet",
+    ),
+    "cooling.hot_aisle": (
+        "xai_colossus_cooling.gauntlets.hot_aisle",
+        "run_hot_aisle_overtemp",
+    ),
+    "cooling.pump_failure": ("xai_colossus_cooling.gauntlets.pump", "run_pump_failure"),
+    "cooling.water_restriction": (
+        "xai_colossus_cooling.gauntlets.water",
+        "run_water_restriction",
+    ),
+    "security.config_drift": (
+        "xai_colossus_security.gauntlets.config",
+        "run_config_drift_check",
+    ),
+    "apex.orchestration": ("doctor_strange.apex.orchestrator", "run_apex_loop"),
 }
 
 
@@ -66,6 +86,7 @@ def run_gauntlet(name: str, params: dict, fail_on_fail: bool, dry_run: bool):
     # dynamic import
     try:
         import importlib
+
         mod = importlib.import_module(module_path)
         func = getattr(mod, func_name)
     except (ImportError, AttributeError) as exc:
