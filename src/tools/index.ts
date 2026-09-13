@@ -30,6 +30,7 @@ import { registerMemoryTools } from "./memory.js";
 import { registerComposioTools } from "./composio.js";
 import { registerBoxBridgeTools } from "./boxBridge.js";
 import { registerNotionDirectTools } from "./notionDirect.js";
+import { registerComputerUserTools } from "./computerUser.js";
 
 export function registerTools(server: McpServer) {
   registerUniversalExecute(server);
@@ -64,4 +65,5 @@ export function registerTools(server: McpServer) {
   registerOllamaTools(server);
   registerBoxBridgeTools(server);
   registerNotionDirectTools(server);
+  registerComputerUserTools(server);
 }
