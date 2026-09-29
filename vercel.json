@@ -7,24 +7,90 @@
     }
   ],
   "routes": [
-    { "src": "/health", "dest": "/api/mcp.ts" },
-    { "src": "/mcp", "dest": "/api/mcp.ts" },
-    { "src": "/functions", "dest": "/api/functions.ts" },
-    { "src": "/call", "dest": "/api/call.ts" },
-    { "src": "/keymaster/connect", "dest": "/api/keymaster-connect.ts" },
-    { "src": "/keymaster/import", "dest": "/api/keymaster-connect.ts" },
-    { "src": "/keymaster/github/start", "dest": "/api/keymaster-connect.ts" },
-    { "src": "/keymaster/github/callback", "dest": "/api/keymaster-connect.ts" },
-    { "src": "/keymaster/github/setup", "dest": "/api/keymaster-connect.ts" },
-    { "src": "/notion/call", "dest": "/api/notion-call.ts" },
-    { "src": "/notion/connect", "dest": "/api/notion-connect.ts" },
-    { "src": "/download", "dest": "/api/download.ts" },
-    { "src": "/notion-handoff", "dest": "/api/notion-handoff.ts" },
-    { "src": "/box/status", "dest": "/api/box-status.ts" },
-    { "src": "/api/memory/add", "dest": "/api/memory/[...operation].ts" },
-    { "src": "/api/memory/search", "dest": "/api/memory/[...operation].ts" },
-    { "src": "/api/memory/delete", "dest": "/api/memory/[...operation].ts" },
-    { "src": "/(.*)", "dest": "/api/mcp.ts" }
+    {
+      "src": "/health",
+      "dest": "/api/mcp.ts"
+    },
+    {
+      "src": "/mcp",
+      "dest": "/api/mcp.ts"
+    },
+    {
+      "src": "/functions",
+      "dest": "/api/functions.ts"
+    },
+    {
+      "src": "/call",
+      "dest": "/api/call.ts"
+    },
+    {
+      "src": "/keymaster/connect",
+      "dest": "/api/keymaster-connect.ts"
+    },
+    {
+      "src": "/keymaster/import",
+      "dest": "/api/keymaster-connect.ts"
+    },
+    {
+      "src": "/keymaster/github/start",
+      "dest": "/api/keymaster-connect.ts"
+    },
+    {
+      "src": "/keymaster/github/callback",
+      "dest": "/api/keymaster-connect.ts"
+    },
+    {
+      "src": "/keymaster/github/setup",
+      "dest": "/api/keymaster-connect.ts"
+    },
+    {
+      "src": "/notion/call",
+      "dest": "/api/notion-call.ts"
+    },
+    {
+      "src": "/notion/connect",
+      "dest": "/api/notion-connect.ts"
+    },
+    {
+      "src": "/download",
+      "dest": "/api/download.ts"
+    },
+    {
+      "src": "/notion-handoff",
+      "dest": "/api/notion-handoff.ts"
+    },
+    {
+      "src": "/box/status",
+      "dest": "/api/box-status.ts"
+    },
+    {
+      "src": "/api/memory/add",
+      "dest": "/api/memory/[...operation].ts"
+    },
+    {
+      "src": "/api/memory/search",
+      "dest": "/api/memory/[...operation].ts"
+    },
+    {
+      "src": "/api/memory/delete",
+      "dest": "/api/memory/[...operation].ts"
+    },
+    {
+      "src": "/v1/hydrate",
+      "dest": "/api/mcp.ts"
+    },
+    {
+      "src": "/v1/invoke",
+      "dest": "/api/mcp.ts"
+    },
+    {
+      "src": "/operator",
+      "dest": "/api/mcp.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/mcp.ts"
+    }
   ],
   "env": {
     "NODE_ENV": "production"
