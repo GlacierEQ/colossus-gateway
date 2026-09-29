@@ -94,14 +94,12 @@ export function buildOwnedPrompt(prompt: string, lanes: ContextLane[]): string {
   ].join('\n');
 }
 
-export async function invokeOwnedModel(
-  input: InvocationInput,
-  dependencies: InvocationDependencies,
+export async function hydrateOwnedContext(
+  input: Pick<InvocationInput, 'prompt' | 'requireProvider'>,
+  dependencies: Pick<InvocationDependencies, 'recoverMemory' | 'recoverNotion'>,
 ) {
   const prompt = input.prompt.trim();
-  const model = input.model.trim();
   if (!prompt) throw new Error('prompt is required');
-  if (!model) throw new Error('model is required');
 
   const lanes = await Promise.all([
     recoverLane('memory', () => dependencies.recoverMemory(prompt)),
@@ -117,11 +115,28 @@ export async function invokeOwnedModel(
     .filter((lane) => lane.state === 'unavailable')
     .map((lane) => `${lane.source}: ${lane.error || 'unavailable'}`);
   const contextMode = providerRetrieved ? 'full' : 'degraded';
-  const ownedPrompt = buildOwnedPrompt(prompt, lanes);
+  return {
+    prompt,
+    lanes,
+    providerRetrieved,
+    errors,
+    contextMode,
+    hydratedPrompt: buildOwnedPrompt(prompt, lanes),
+  };
+}
+
+export async function invokeOwnedModel(
+  input: InvocationInput,
+  dependencies: InvocationDependencies,
+) {
+  const model = input.model.trim();
+  if (!model) throw new Error('model is required');
+
+  const hydrated = await hydrateOwnedContext(input, dependencies);
   const system = [RUNTIME_CONTRACT, input.system?.trim()].filter(Boolean).join('\n\n');
 
   const response = await dependencies.callModel({
-    prompt: ownedPrompt,
+    prompt: hydrated.hydratedPrompt,
     model,
     system,
   });
@@ -133,11 +148,11 @@ export async function invokeOwnedModel(
     invocation_owned: true,
     model: response.model || model,
     response: response.text,
-    context_mode: contextMode,
-    provider_retrieved: providerRetrieved,
+    context_mode: hydrated.contextMode,
+    provider_retrieved: hydrated.providerRetrieved,
     context: {
-      lanes,
-      errors,
+      lanes: hydrated.lanes,
+      errors: hydrated.errors,
     },
   };
 }
