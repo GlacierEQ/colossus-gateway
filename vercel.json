@@ -77,15 +77,15 @@
     },
     {
       "src": "/v1/hydrate",
-      "dest": "/api/hydrate.ts"
+      "dest": "/api/mcp.ts"
     },
     {
       "src": "/v1/invoke",
-      "dest": "/api/invoke.ts"
+      "dest": "/api/mcp.ts"
     },
     {
       "src": "/operator",
-      "dest": "/api/operator.ts"
+      "dest": "/api/mcp.ts"
     },
     {
       "src": "/(.*)",
