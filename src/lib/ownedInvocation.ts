@@ -3,6 +3,8 @@ export type ContextLaneState = 'retrieved' | 'empty' | 'unavailable';
 export interface InvocationInput {
   prompt: string;
   model: string;
+  fallbackModels?: string[];
+  providerOrder?: string[];
   system?: string;
   requireProvider?: boolean;
 }
@@ -10,14 +12,22 @@ export interface InvocationInput {
 export interface InvocationDependencies {
   recoverMemory: (prompt: string) => Promise<unknown>;
   recoverNotion: (prompt: string) => Promise<unknown>;
-  callModel: (request: { prompt: string; model: string; system?: string }) => Promise<{
+  contextSources?: Record<string, (prompt: string) => Promise<unknown>>;
+  callModel: (request: {
+    prompt: string;
+    model: string;
+    fallbackModels?: string[];
+    providerOrder?: string[];
+    system?: string;
+  }) => Promise<{
     model?: string;
     text: string;
+    route?: unknown;
   }>;
 }
 
 export interface ContextLane {
-  source: 'memory' | 'notion';
+  source: string;
   state: ContextLaneState;
   value?: unknown;
   error?: string;
@@ -37,7 +47,7 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function hasMaterialValue(source: ContextLane['source'], value: unknown): boolean {
+function hasMaterialValue(source: string, value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (source === 'memory' && typeof value === 'object') {
     const record = value as { results?: unknown };
@@ -54,11 +64,12 @@ function hasMaterialValue(source: ContextLane['source'], value: unknown): boolea
 }
 
 async function recoverLane(
-  source: ContextLane['source'],
-  recover: () => Promise<unknown>,
+  source: string,
+  prompt: string,
+  recover: (prompt: string) => Promise<unknown>,
 ): Promise<ContextLane> {
   try {
-    const value = await recover();
+    const value = await recover(prompt);
     if (source === 'notion' && typeof value === 'object' && value !== null && (value as { ok?: boolean }).ok === false) {
       const failure = value as { error?: { message?: string } };
       return { source, state: 'unavailable', error: failure.error?.message || 'provider returned an unavailable state' };
@@ -96,15 +107,22 @@ export function buildOwnedPrompt(prompt: string, lanes: ContextLane[]): string {
 
 export async function hydrateOwnedContext(
   input: Pick<InvocationInput, 'prompt' | 'requireProvider'>,
-  dependencies: Pick<InvocationDependencies, 'recoverMemory' | 'recoverNotion'>,
+  dependencies: Pick<InvocationDependencies, 'recoverMemory' | 'recoverNotion' | 'contextSources'>,
 ) {
   const prompt = input.prompt.trim();
   if (!prompt) throw new Error('prompt is required');
 
-  const lanes = await Promise.all([
-    recoverLane('memory', () => dependencies.recoverMemory(prompt)),
-    recoverLane('notion', () => dependencies.recoverNotion(prompt)),
-  ]);
+  const registry = dependencies.contextSources;
+  const sourceEntries: Array<[string, (prompt: string) => Promise<unknown>]> =
+    registry && Object.keys(registry).length
+      ? Object.entries(registry)
+      : [
+          ['memory', dependencies.recoverMemory],
+          ['notion', dependencies.recoverNotion],
+        ];
+  const lanes = await Promise.all(
+    sourceEntries.map(([source, recover]) => recoverLane(source, prompt, recover)),
+  );
   const providerRetrieved = lanes.some((lane) => lane.state === 'retrieved');
 
   if (input.requireProvider === true && !providerRetrieved) {
@@ -138,6 +156,8 @@ export async function invokeOwnedModel(
   const response = await dependencies.callModel({
     prompt: hydrated.hydratedPrompt,
     model,
+    fallbackModels: input.fallbackModels,
+    providerOrder: input.providerOrder,
     system,
   });
   if (!response?.text?.trim()) throw new Error('model provider returned an empty response');
@@ -148,6 +168,7 @@ export async function invokeOwnedModel(
     invocation_owned: true,
     model: response.model || model,
     response: response.text,
+    model_route: response.route,
     context_mode: hydrated.contextMode,
     provider_retrieved: hydrated.providerRetrieved,
     context: {

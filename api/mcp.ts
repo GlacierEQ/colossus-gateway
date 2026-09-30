@@ -6,8 +6,8 @@ import { GATEWAY_VERSION } from "../src/constants.js";
 import { authorizeRequest } from "../src/lib/operatorAuth.js";
 import { hydrateOwnedContext, invokeOwnedModel } from "../src/lib/ownedInvocation.js";
 import {
-  defaultOwnedModel,
   productionInvocationDependencies,
+  resolveGatewayModelPlan,
 } from "../src/lib/ownedInvocationRuntime.js";
 import { server } from "../src/server.js";
 
@@ -161,16 +161,41 @@ async function handleHydrate(req: IncomingMessage, res: ServerResponse) {
 async function handleInvoke(req: IncomingMessage, res: ServerResponse) {
   const body = await readJson(req);
   const prompt = typeof body.prompt === "string" ? body.prompt : "";
-  const model = typeof body.model === "string" && body.model.trim()
+  const requestedModel = typeof body.model === "string" && body.model.trim()
     ? body.model.trim()
-    : defaultOwnedModel();
+    : undefined;
+  const requestedFallbacks = Array.isArray(body.fallback_models)
+    ? body.fallback_models.filter(
+        (item): item is string => typeof item === "string" && item.trim().length > 0,
+      )
+    : undefined;
+  const requestedProviderOrder = Array.isArray(body.provider_order)
+    ? body.provider_order.filter(
+        (item): item is string => typeof item === "string" && item.trim().length > 0,
+      )
+    : undefined;
+  const modelPlan = await resolveGatewayModelPlan({
+    model: requestedModel,
+    fallbackModels: requestedFallbacks,
+    providerOrder: requestedProviderOrder,
+  });
   const system = typeof body.system === "string" ? body.system : undefined;
   const requireProvider = body.require_provider === true || body.requireProvider === true;
   const result = await invokeOwnedModel(
-    { prompt, model, system, requireProvider },
+    {
+      prompt,
+      model: modelPlan.primary,
+      fallbackModels: modelPlan.models.slice(1),
+      providerOrder: modelPlan.providerOrder,
+      system,
+      requireProvider,
+    },
     productionInvocationDependencies(),
   );
-  sendJson(res, 200, result);
+  sendJson(res, 200, {
+    ...result,
+    model_plan: modelPlan,
+  });
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
