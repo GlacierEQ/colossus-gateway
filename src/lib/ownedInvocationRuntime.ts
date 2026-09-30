@@ -21,8 +21,56 @@ function responseText(payload: any): string {
   return chunks.join('\n').trim();
 }
 
+export interface GatewayModelPlan {
+  primary: string;
+  models: string[];
+  providerOrder: string[];
+  dynamic: boolean;
+}
+
+function csv(value: string | undefined): string[] {
+  return (value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function dedupe(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+export function buildGatewayModelPlan(
+  input: { model?: string; fallbackModels?: string[]; providerOrder?: string[] },
+  env: NodeJS.ProcessEnv = process.env,
+): GatewayModelPlan {
+  const configuredPool = csv(env.GLACIEREQ_MODEL_POOL);
+  const requested = input.model?.trim();
+  const fallbackModels = (input.fallbackModels || []).map((item) => item.trim()).filter(Boolean);
+  const pool = dedupe([
+    ...(requested ? [requested] : []),
+    ...fallbackModels,
+    ...configuredPool,
+  ]);
+  if (!pool.length) {
+    throw new Error('No GlacierEQ model routes are configured; set GLACIEREQ_MODEL_POOL or request a model explicitly');
+  }
+  const providerOrder = dedupe(
+    (input.providerOrder && input.providerOrder.length
+      ? input.providerOrder
+      : csv(env.GLACIEREQ_PROVIDER_ORDER))
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+  return {
+    primary: pool[0],
+    models: pool,
+    providerOrder,
+    dynamic: pool.length > 1 || providerOrder.length > 1,
+  };
+}
+
 export function defaultOwnedModel(): string {
-  return (process.env.GLACIEREQ_DEFAULT_MODEL || 'openai/gpt-5.6-sol').trim();
+  return buildGatewayModelPlan({}).primary;
 }
 
 export function productionInvocationDependencies(): InvocationDependencies {
@@ -41,12 +89,13 @@ export function productionInvocationDependencies(): InvocationDependencies {
         vercelOidcToken: process.env.VERCEL_OIDC_TOKEN,
       },
     ),
-    callModel: async ({ prompt, model, system }) => {
+    callModel: async ({ prompt, model, fallbackModels, providerOrder, system }) => {
       const credential = gatewayCredential();
       if (!credential) {
         throw new Error('Vercel AI Gateway credential is unavailable');
       }
 
+      const plan = buildGatewayModelPlan({ model, fallbackModels, providerOrder });
       const response = await fetch(`${AI_GATEWAY_BASE}/responses`, {
         method: 'POST',
         headers: {
@@ -54,11 +103,13 @@ export function productionInvocationDependencies(): InvocationDependencies {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model,
+          model: plan.primary,
           instructions: system,
           input: [{ type: 'message', role: 'user', content: prompt }],
           providerOptions: {
             gateway: {
+              models: plan.models,
+              ...(plan.providerOrder.length ? { order: plan.providerOrder } : {}),
               disallowPromptTraining: true,
             },
           },
@@ -74,9 +125,21 @@ export function productionInvocationDependencies(): InvocationDependencies {
       }
       const text = responseText(payload);
       if (!text) throw new Error('AI Gateway returned no text output');
+      const gatewayMeta = payload?.provider_metadata?.gateway
+        || payload?.providerMetadata?.gateway
+        || payload?.provider_metadata
+        || payload?.providerMetadata
+        || undefined;
       return {
-        model: typeof payload?.model === 'string' ? payload.model : model,
+        model: typeof payload?.model === 'string' ? payload.model : plan.primary,
         text,
+        route: {
+          requested_primary: plan.primary,
+          candidate_models: plan.models,
+          provider_order: plan.providerOrder,
+          dynamic: plan.dynamic,
+          gateway: gatewayMeta,
+        },
       };
     },
   };
