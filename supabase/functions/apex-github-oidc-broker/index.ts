@@ -11,7 +11,10 @@ const TRUSTED_OWNER = "GlacierEQ";
 const TRUSTED_OWNER_ID = "194243768";
 const TRUSTED_ACTOR = "GlacierEQ";
 const TRUSTED_ACTOR_ID = "194243768";
-const TRUSTED_WORKFLOW_REF = "GlacierEQ/public-actions-runner-host/.github/workflows/apex-pillar-runner.yml@refs/heads/main";
+const TRUSTED_WORKFLOW_REFS = new Set([
+  "GlacierEQ/public-actions-runner-host/.github/workflows/apex-pillar-runner.yml@refs/heads/main",
+  "GlacierEQ/public-actions-runner-host/.github/workflows/private-ci-relay.yml@refs/heads/main",
+]);
 const ALLOWED_EVENTS = new Set(["push", "workflow_dispatch", "repository_dispatch", "issues", "pull_request"]);
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
@@ -54,7 +57,7 @@ async function verifyGithubOidc(req: Request): Promise<Record<string, unknown>> 
     claim(p, "repository_visibility") !== "public" ||
     claim(p, "actor") !== TRUSTED_ACTOR ||
     claim(p, "actor_id") !== TRUSTED_ACTOR_ID ||
-    claim(p, "workflow_ref") !== TRUSTED_WORKFLOW_REF ||
+    !TRUSTED_WORKFLOW_REFS.has(claim(p, "workflow_ref")) ||
     !ALLOWED_EVENTS.has(event)
   ) throw new Error("oidc_identity_rejected");
   if (event !== "pull_request" && ref !== "refs/heads/main") throw new Error("oidc_ref_rejected");
