@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { invokeOwnedModel } from '../src/lib/ownedInvocation.js';
-import { buildGatewayModelPlan } from '../src/lib/ownedInvocationRuntime.js';
+import { buildGatewayModelPlan, rankGatewayCatalog } from '../src/lib/ownedInvocationRuntime.js';
 
 describe('owned invocation boundary', () => {
   it('recovers context before exactly one model invocation and preserves the operator message', async () => {
@@ -124,5 +124,69 @@ describe('dynamic model routing', () => {
       },
     );
     expect(plan.models).toEqual(['openai/gpt-5.6-sol', 'anthropic/claude-opus-5']);
+  });
+});
+
+
+
+describe('live model discovery', () => {
+  it('builds a provider-diverse pool from current capability-bearing language models', () => {
+    const ranked = rankGatewayCatalog([
+      {
+        id: 'provider-a/new-reasoner',
+        owned_by: 'provider-a',
+        type: 'language',
+        released: 200,
+        context_window: 200000,
+        tags: ['reasoning', 'tool-use'],
+      },
+      {
+        id: 'provider-a/older-reasoner',
+        owned_by: 'provider-a',
+        type: 'language',
+        released: 100,
+        context_window: 500000,
+        tags: ['reasoning', 'tool-use'],
+      },
+      {
+        id: 'provider-b/agent-model',
+        owned_by: 'provider-b',
+        type: 'language',
+        released: 180,
+        context_window: 100000,
+        tags: ['reasoning', 'tool-use'],
+      },
+      {
+        id: 'provider-c/no-tools',
+        owned_by: 'provider-c',
+        type: 'language',
+        released: 999,
+        context_window: 1000000,
+        tags: ['reasoning'],
+      },
+      {
+        id: 'provider-d/image',
+        owned_by: 'provider-d',
+        type: 'image',
+        released: 999,
+        context_window: 0,
+        tags: [],
+      },
+    ], {
+      requiredTags: ['reasoning', 'tool-use'],
+      limit: 4,
+    });
+
+    expect(ranked).toEqual([
+      'provider-a/new-reasoner',
+      'provider-b/agent-model',
+      'provider-a/older-reasoner',
+    ]);
+  });
+
+  it('does not invent a static winner when the live catalog contains no eligible model', () => {
+    expect(rankGatewayCatalog([
+      { id: 'provider/image', owned_by: 'provider', type: 'image', tags: [] },
+    ], { requiredTags: ['reasoning', 'tool-use'], limit: 4 })).toEqual([]);
   });
 });
