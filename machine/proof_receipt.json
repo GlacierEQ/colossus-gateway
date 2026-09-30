@@ -4,12 +4,12 @@
   "source_sha": "28fbb53d028a14e598d91b2fe60b523077b15c5bcb6d6628adfce3c9fbbeb793",
   "proof_id": "elite-colossus-gateway-1786335149",
   "environment": {
-    "python": "/Users/kcbflux/job-app/excellence/.venv-elite/bin/python",
-    "PYTHONPATH": "/Users/kcbflux/job-app/repos/colossus-gateway:/Users/kcbflux/job-app/repos/colossus-gateway/src",
+    "python": "${HOME}/job-app/excellence/.venv-elite/bin/python",
+    "PYTHONPATH": "${HOME}/job-app/repos/colossus-gateway:${HOME}/job-app/repos/colossus-gateway/src",
     "entry": "unittest"
   },
   "tests": [
-    "/Users/kcbflux/job-app/excellence/.venv-elite/bin/python -m unittest discover -s tests -v (x2)"
+    "${HOME}/job-app/excellence/.venv-elite/bin/python -m unittest discover -s tests -v (x2)"
   ],
   "adversarial_tests": [
     "tests/test_adversarial.py"
