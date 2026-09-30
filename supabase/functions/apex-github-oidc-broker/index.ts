@@ -238,7 +238,13 @@ Deno.serve(async (req: Request) => {
     const allowed = Array.isArray(session.expected_repositories)
       ? session.expected_repositories.filter((v: unknown) => typeof v === "string")
       : [];
-    if (!allowed.includes(repository)) throw new Error("repository_not_allowlisted");
+    const dynamicReadOnlyWorkload =
+      operation === "public-action-workload" &&
+      permissions.contents === "read" &&
+      Object.keys(permissions).length === 1;
+    if (!dynamicReadOnlyWorkload && !allowed.includes(repository)) {
+      throw new Error("repository_not_allowlisted");
+    }
     if (!session.app_private_key_ref || !session.app_id || !session.installation_id) {
       throw new Error("github_app_identity_incomplete");
     }
