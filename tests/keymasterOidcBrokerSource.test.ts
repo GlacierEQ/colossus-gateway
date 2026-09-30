@@ -88,3 +88,23 @@ describe("Keymaster GitHub OIDC broker source contract", () => {
     expect(source).toContain("await revokeInstallationToken(workloadToken)");
   });
 });
+
+
+describe("Keymaster live read-dependency admission", () => {
+  it("lets read-only public-action-workload use live installation membership", () => {
+    const source = readFileSync(SOURCE_PATH, "utf8");
+
+    expect(source).toContain('operation === "public-action-workload"');
+    expect(source).toContain('permissions.contents === "read"');
+    expect(source).toContain("Object.keys(permissions).length === 1");
+    expect(source).toContain("repository_not_in_live_installation");
+  });
+
+  it("retains the bootstrap allowlist for write-capable and non-workload operations", () => {
+    const source = readFileSync(SOURCE_PATH, "utf8");
+
+    expect(source).toContain("repository_not_allowlisted");
+    expect(source).toContain("dynamicReadOnlyWorkload");
+    expect(source).toContain("if (!dynamicReadOnlyWorkload && !allowed.includes(repository))");
+  });
+});
