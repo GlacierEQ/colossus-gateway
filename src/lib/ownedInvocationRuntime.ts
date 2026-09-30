@@ -21,6 +21,90 @@ function responseText(payload: any): string {
   return chunks.join('\n').trim();
 }
 
+
+export interface GatewayCatalogModel {
+  id?: string;
+  owned_by?: string;
+  type?: string;
+  released?: number;
+  context_window?: number;
+  tags?: string[];
+}
+
+export function rankGatewayCatalog(
+  catalog: GatewayCatalogModel[],
+  options: { requiredTags: string[]; limit: number },
+): string[] {
+  const required = new Set(options.requiredTags.map((item) => item.trim()).filter(Boolean));
+  const eligible = catalog
+    .filter((item) => typeof item.id === 'string' && item.id.trim())
+    .filter((item) => item.type === 'language')
+    .filter((item) => {
+      const tags = new Set((item.tags || []).map((tag) => tag.trim()));
+      return [...required].every((tag) => tags.has(tag));
+    })
+    .sort((a, b) => {
+      const releaseDelta = Number(b.released || 0) - Number(a.released || 0);
+      if (releaseDelta) return releaseDelta;
+      const contextDelta = Number(b.context_window || 0) - Number(a.context_window || 0);
+      if (contextDelta) return contextDelta;
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+  const selected: string[] = [];
+  const seenOwners = new Set<string>();
+  for (const item of eligible) {
+    const owner = String(item.owned_by || String(item.id).split('/')[0] || 'unknown');
+    if (!seenOwners.has(owner)) {
+      selected.push(String(item.id));
+      seenOwners.add(owner);
+      if (selected.length >= options.limit) return selected;
+    }
+  }
+  for (const item of eligible) {
+    const id = String(item.id);
+    if (!selected.includes(id)) selected.push(id);
+    if (selected.length >= options.limit) break;
+  }
+  return selected;
+}
+
+async function discoverGatewayModels(
+  fetchFn: typeof fetch = fetch,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string[]> {
+  const requiredTags = csv(env.GLACIEREQ_MODEL_REQUIRED_TAGS || 'reasoning,tool-use');
+  const limit = Math.max(2, Math.min(8, Number(env.GLACIEREQ_MODEL_POOL_LIMIT || 4)));
+  const response = await fetchFn(`${AI_GATEWAY_BASE}/models`);
+  if (!response.ok) throw new Error(`AI Gateway model discovery HTTP ${response.status}`);
+  const payload = await response.json().catch(() => ({}));
+  const catalog = Array.isArray(payload?.data) ? payload.data : [];
+  return rankGatewayCatalog(catalog, { requiredTags, limit });
+}
+
+export async function resolveGatewayModelPlan(
+  input: { model?: string; fallbackModels?: string[]; providerOrder?: string[] },
+  env: NodeJS.ProcessEnv = process.env,
+  fetchFn: typeof fetch = fetch,
+): Promise<GatewayModelPlan> {
+  const configuredPool = csv(env.GLACIEREQ_MODEL_POOL);
+  if (input.model?.trim() || (input.fallbackModels && input.fallbackModels.length) || configuredPool.length) {
+    return buildGatewayModelPlan(input, env);
+  }
+  const discovered = await discoverGatewayModels(fetchFn, env);
+  if (!discovered.length) {
+    throw new Error('No eligible live AI Gateway models were discovered');
+  }
+  return buildGatewayModelPlan(
+    {
+      model: discovered[0],
+      fallbackModels: discovered.slice(1),
+      providerOrder: input.providerOrder,
+    },
+    env,
+  );
+}
+
 export interface GatewayModelPlan {
   primary: string;
   models: string[];
@@ -69,8 +153,8 @@ export function buildGatewayModelPlan(
   };
 }
 
-export function defaultOwnedModel(): string {
-  return buildGatewayModelPlan({}).primary;
+export async function defaultOwnedModel(): Promise<string> {
+  return (await resolveGatewayModelPlan({})).primary;
 }
 
 export function productionInvocationDependencies(): InvocationDependencies {
@@ -95,7 +179,7 @@ export function productionInvocationDependencies(): InvocationDependencies {
         throw new Error('Vercel AI Gateway credential is unavailable');
       }
 
-      const plan = buildGatewayModelPlan({ model, fallbackModels, providerOrder });
+      const plan = await resolveGatewayModelPlan({ model, fallbackModels, providerOrder });
       const response = await fetch(`${AI_GATEWAY_BASE}/responses`, {
         method: 'POST',
         headers: {
