@@ -108,3 +108,26 @@ describe("Keymaster live read-dependency admission", () => {
     expect(source).toContain("if (!dynamicReadOnlyWorkload && !allowed.includes(repository))");
   });
 });
+
+
+describe("Keymaster trusted workflow boundary", () => {
+  it("trusts only the two exact public-runner workflow identities needed for execution", () => {
+    const source = readFileSync(SOURCE_PATH, "utf8");
+
+    expect(source).toContain("const TRUSTED_WORKFLOW_REFS = new Set([");
+    expect(source).toContain(
+      '"GlacierEQ/public-actions-runner-host/.github/workflows/apex-pillar-runner.yml@refs/heads/main"',
+    );
+    expect(source).toContain(
+      '"GlacierEQ/public-actions-runner-host/.github/workflows/private-ci-relay.yml@refs/heads/main"',
+    );
+    expect(source).toContain(
+      '!TRUSTED_WORKFLOW_REFS.has(claim(p, "workflow_ref"))',
+    );
+    expect(source).not.toContain(
+      'const TRUSTED_WORKFLOW_REF = "GlacierEQ/public-actions-runner-host/.github/workflows/apex-pillar-runner.yml@refs/heads/main";',
+    );
+    expect(source).not.toContain("workflow_ref).startsWith");
+    expect(source).not.toContain("workflow_ref).includes");
+  });
+});
