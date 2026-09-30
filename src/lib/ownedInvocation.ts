@@ -3,6 +3,8 @@ export type ContextLaneState = 'retrieved' | 'empty' | 'unavailable';
 export interface InvocationInput {
   prompt: string;
   model: string;
+  fallbackModels?: string[];
+  providerOrder?: string[];
   system?: string;
   requireProvider?: boolean;
 }
@@ -10,9 +12,16 @@ export interface InvocationInput {
 export interface InvocationDependencies {
   recoverMemory: (prompt: string) => Promise<unknown>;
   recoverNotion: (prompt: string) => Promise<unknown>;
-  callModel: (request: { prompt: string; model: string; system?: string }) => Promise<{
+  callModel: (request: {
+    prompt: string;
+    model: string;
+    fallbackModels?: string[];
+    providerOrder?: string[];
+    system?: string;
+  }) => Promise<{
     model?: string;
     text: string;
+    route?: unknown;
   }>;
 }
 
@@ -138,6 +147,8 @@ export async function invokeOwnedModel(
   const response = await dependencies.callModel({
     prompt: hydrated.hydratedPrompt,
     model,
+    fallbackModels: input.fallbackModels,
+    providerOrder: input.providerOrder,
     system,
   });
   if (!response?.text?.trim()) throw new Error('model provider returned an empty response');
@@ -148,6 +159,7 @@ export async function invokeOwnedModel(
     invocation_owned: true,
     model: response.model || model,
     response: response.text,
+    model_route: response.route,
     context_mode: hydrated.contextMode,
     provider_retrieved: hydrated.providerRetrieved,
     context: {
