@@ -107,17 +107,19 @@ export function buildOwnedPrompt(prompt: string, lanes: ContextLane[]): string {
 
 export async function hydrateOwnedContext(
   input: Pick<InvocationInput, 'prompt' | 'requireProvider'>,
-  dependencies: Pick<InvocationDependencies, 'recoverMemory' | 'recoverNotion'>,
+  dependencies: Pick<InvocationDependencies, 'recoverMemory' | 'recoverNotion' | 'contextSources'>,
 ) {
   const prompt = input.prompt.trim();
   if (!prompt) throw new Error('prompt is required');
 
-  const sourceEntries = dependencies.contextSources && Object.keys(dependencies.contextSources).length
-    ? Object.entries(dependencies.contextSources)
-    : [
-        ['memory', dependencies.recoverMemory] as const,
-        ['notion', dependencies.recoverNotion] as const,
-      ];
+  const registry = dependencies.contextSources;
+  const sourceEntries: Array<[string, (prompt: string) => Promise<unknown>]> =
+    registry && Object.keys(registry).length
+      ? Object.entries(registry)
+      : [
+          ['memory', dependencies.recoverMemory],
+          ['notion', dependencies.recoverNotion],
+        ];
   const lanes = await Promise.all(
     sourceEntries.map(([source, recover]) => recoverLane(source, prompt, recover)),
   );
