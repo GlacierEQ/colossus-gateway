@@ -190,3 +190,44 @@ describe('live model discovery', () => {
     ], { requiredTags: ['reasoning', 'tool-use'], limit: 4 })).toEqual([]);
   });
 });
+
+
+
+describe('dynamic context lanes', () => {
+  it('accepts runtime context sources without changing the invocation core', async () => {
+    const callModel = vi.fn(async (request: { prompt: string; model: string }) => ({
+      model: request.model,
+      text: 'continued with dynamic context',
+    }));
+
+    const result = await invokeOwnedModel(
+      {
+        prompt: 'continue this project',
+        model: 'provider/model',
+      },
+      {
+        recoverMemory: async () => ({ results: [] }),
+        recoverNotion: async () => ({ ok: true, result: { results: [] } }),
+        contextSources: {
+          memory: async () => ({ results: [{ memory: 'prior turn' }] }),
+          project_state: async () => ({ branch: 'main', open_loops: 3 }),
+          unavailable_lane: async () => {
+            throw new Error('connector offline');
+          },
+        },
+        callModel,
+      },
+    );
+
+    expect(result.context.lanes.map((lane) => lane.source)).toEqual([
+      'memory',
+      'project_state',
+      'unavailable_lane',
+    ]);
+    expect(result.context.errors).toEqual(['unavailable_lane: connector offline']);
+    expect(result.context_mode).toBe('full');
+    expect(callModel).toHaveBeenCalledTimes(1);
+    expect(callModel.mock.calls[0][0].prompt).toContain('project_state');
+    expect(callModel.mock.calls[0][0].prompt).toContain('open_loops');
+  });
+});
