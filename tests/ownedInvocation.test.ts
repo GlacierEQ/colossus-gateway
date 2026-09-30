@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { invokeOwnedModel } from '../src/lib/ownedInvocation.js';
+import { buildGatewayModelPlan } from '../src/lib/ownedInvocationRuntime.js';
 
 describe('owned invocation boundary', () => {
   it('recovers context before exactly one model invocation and preserves the operator message', async () => {
@@ -78,5 +79,50 @@ describe('owned invocation boundary', () => {
     ).rejects.toThrow('explicit provider context requirement');
 
     expect(callModel).not.toHaveBeenCalled();
+  });
+});
+
+
+
+describe('dynamic model routing', () => {
+  it('uses an explicit requested model as the first route while preserving fallbacks', () => {
+    const plan = buildGatewayModelPlan(
+      { model: 'anthropic/claude-opus-5' },
+      {
+        GLACIEREQ_MODEL_POOL: 'openai/gpt-5.6-sol,google/gemini-3.1-pro-preview,anthropic/claude-opus-5',
+      },
+    );
+
+    expect(plan.primary).toBe('anthropic/claude-opus-5');
+    expect(plan.models).toEqual([
+      'anthropic/claude-opus-5',
+      'openai/gpt-5.6-sol',
+      'google/gemini-3.1-pro-preview',
+    ]);
+  });
+
+  it('uses the configured model pool dynamically when no single model is requested', () => {
+    const plan = buildGatewayModelPlan(
+      {},
+      {
+        GLACIEREQ_MODEL_POOL: 'openai/gpt-5.6-sol,anthropic/claude-opus-5,google/gemini-3.1-pro-preview',
+        GLACIEREQ_PROVIDER_ORDER: 'openai,azure,anthropic,vertex,google',
+      },
+    );
+
+    expect(plan.primary).toBe('openai/gpt-5.6-sol');
+    expect(plan.models).toHaveLength(3);
+    expect(plan.providerOrder).toEqual(['openai', 'azure', 'anthropic', 'vertex', 'google']);
+    expect(plan.dynamic).toBe(true);
+  });
+
+  it('deduplicates model routes instead of creating fake fallback diversity', () => {
+    const plan = buildGatewayModelPlan(
+      {},
+      {
+        GLACIEREQ_MODEL_POOL: 'openai/gpt-5.6-sol,openai/gpt-5.6-sol,anthropic/claude-opus-5',
+      },
+    );
+    expect(plan.models).toEqual(['openai/gpt-5.6-sol', 'anthropic/claude-opus-5']);
   });
 });
