@@ -3,12 +3,22 @@ import { memoryAdd as supermemoryAdd, memoryDelete as supermemoryDelete, memoryS
 
 export type MemoryProvider = "auto" | "mem0" | "supermemory" | "both";
 
-function chooseProvider(query = "", containerTag = ""): "mem0" | "supermemory" {
+export type ConcreteMemoryProvider = "mem0" | "supermemory";
+
+export function planMemoryRoutes(
+  query = "",
+  containerTag = "",
+  availability: { mem0: boolean; supermemory: boolean } = {
+    mem0: Boolean(process.env.MEM0_API_KEY),
+    supermemory: Boolean(process.env.SUPERMEMORY_API_KEY),
+  },
+): ConcreteMemoryProvider[] {
   const signal = `${query} ${containerTag}`.toLowerCase();
   const wantsLongForm = /case|brain|legal|document|provenance|evidence|source/.test(signal);
-  if (wantsLongForm && process.env.SUPERMEMORY_API_KEY) return "supermemory";
-  if (!wantsLongForm && process.env.MEM0_API_KEY) return "mem0";
-  return process.env.SUPERMEMORY_API_KEY ? "supermemory" : "mem0";
+  const preferred: ConcreteMemoryProvider[] = wantsLongForm
+    ? ["supermemory", "mem0"]
+    : ["mem0", "supermemory"];
+  return preferred.filter((provider) => availability[provider]);
 }
 
 function trimText(value: unknown, max = 800): string | undefined {
@@ -37,15 +47,84 @@ function compactSupermemory(value: any) {
   }));
 }
 
+export async function executeMemorySearch(
+  routes: ConcreteMemoryProvider[],
+  input: SearchReq & { user_id?: string; agent_id?: string },
+  dependencies: {
+    mem0: (input: Mem0Input) => Promise<any>;
+    supermemory: (input: SearchReq & { user_id?: string; agent_id?: string }) => Promise<any>;
+  } = {
+    mem0: mem0Search,
+    supermemory: supermemorySearch,
+  },
+) {
+  const mem0Input: Mem0Input = {
+    query: input.query ?? input.q,
+    user_id: input.user_id,
+    agent_id: input.agent_id,
+    limit: input.limit,
+  };
+  const attempted: ConcreteMemoryProvider[] = [];
+  const failures: Array<{ provider: ConcreteMemoryProvider; error: string }> = [];
+
+  for (const route of routes) {
+    attempted.push(route);
+    try {
+      const raw = route === "mem0"
+        ? await dependencies.mem0(mem0Input)
+        : await dependencies.supermemory(input);
+      return {
+        provider: route,
+        attempted,
+        failures,
+        degraded: failures.length > 0,
+        results: route === "mem0" ? compactMem0(raw) : compactSupermemory(raw),
+      };
+    } catch (error) {
+      failures.push({
+        provider: route,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  throw new Error(
+    `memory routes exhausted: ${failures.map((item) => `${item.provider}=${item.error}`).join("; ") || "no eligible providers"}`,
+  );
+}
+
 export async function searchMemory(provider: MemoryProvider, input: SearchReq & { user_id?: string; agent_id?: string }) {
-  const selected = provider === "auto" ? chooseProvider(input.query ?? input.q, input.containerTag ?? "") : provider;
-  const mem0Input: Mem0Input = { query: input.query ?? input.q, user_id: input.user_id, agent_id: input.agent_id, limit: input.limit };
+  if (provider === "auto") {
+    const routes = planMemoryRoutes(input.query ?? input.q, input.containerTag ?? "");
+    return executeMemorySearch(routes, input);
+  }
 
-  if (selected === "mem0") return { provider: "mem0", results: compactMem0(await mem0Search(mem0Input)) };
-  if (selected === "supermemory") return { provider: "supermemory", results: compactSupermemory(await supermemorySearch(input)) };
+  if (provider === "mem0" || provider === "supermemory") {
+    return executeMemorySearch([provider], input);
+  }
 
-  const [mem0, supermemory] = await Promise.all([mem0Search(mem0Input), supermemorySearch(input)]);
-  return { provider: "both", results: { mem0: compactMem0(mem0), supermemory: compactSupermemory(supermemory) } };
+  const routes = planMemoryRoutes(input.query ?? input.q, input.containerTag ?? "", {
+    mem0: true,
+    supermemory: true,
+  });
+  const settled = await Promise.allSettled(
+    routes.map((route) => executeMemorySearch([route], input)),
+  );
+  const successes = settled
+    .filter((item): item is PromiseFulfilledResult<Awaited<ReturnType<typeof executeMemorySearch>>> => item.status === "fulfilled")
+    .map((item) => item.value);
+  if (!successes.length) {
+    const failures = settled
+      .filter((item): item is PromiseRejectedResult => item.status === "rejected")
+      .map((item) => String(item.reason));
+    throw new Error(`all memory providers failed: ${failures.join("; ")}`);
+  }
+  return {
+    provider: "both",
+    degraded: successes.length !== routes.length,
+    attempted: routes,
+    results: Object.fromEntries(successes.map((item) => [item.provider, item.results])),
+  };
 }
 
 export async function deleteMemory(provider: Exclude<MemoryProvider, "auto">, id: string) {
