@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { auditLedger } from './audit.js';
 import { BoxApiError, BoxClient } from './boxClient.js';
+import { withBoxClient } from './boxAuth.js';
 import type { BridgeRequestContext } from './context.js';
 
 const CONNECTOR_HANDOFF_MAX_BYTES = 1024 * 1024;
@@ -141,9 +142,6 @@ function targetFromArgs(name: string, args: Record<string, any>) {
   };
 }
 
-function boxToken(context: BridgeRequestContext): string | undefined {
-  return context.boxAccessToken || process.env.BOX_ACCESS_TOKEN;
-}
 
 function isTextContent(contentType: string, fileName: string): boolean {
   return /^text\//.test(contentType) || /\.(md|txt|csv|tsv|json|xml|html|js|ts|py|sh)$/i.test(fileName);
@@ -212,12 +210,12 @@ export async function executeTool(name: string, args: Record<string, any>, conte
   try {
     let result: unknown;
     switch (name) {
-      case 'box_search': result = await new BoxClient(boxToken(context)).search(args as any); break;
+      case 'box_search': result = await withBoxClient(context, 'box_search', (client) => client.search(args as any)); break;
       case 'box_get': {
         const delegated = await delegatedResult(args);
         if (delegated) result = { item_id: args.item_id, content: delegated };
         else {
-          const client = new BoxClient(boxToken(context));
+          const client = await withBoxClient(context, 'box_get', async (resolved) => resolved);
           const metadata = await client.get(args as any);
           const content = args.include_content && args.item_type !== 'folder'
             ? await client.downloadRaw(args.item_id, args.max_bytes || 20 * 1024 * 1024).then((download) => ({
@@ -237,21 +235,21 @@ export async function executeTool(name: string, args: Record<string, any>, conte
         const delegated = await delegatedResult(args);
         if (delegated) result = delegated;
         else {
-          const download = await new BoxClient(boxToken(context)).downloadRaw(args.file_id, args.max_bytes || 20 * 1024 * 1024);
+          const download = await withBoxClient(context, 'box_download', (client) => client.downloadRaw(args.file_id, args.max_bytes || 20 * 1024 * 1024));
           result = { file_id: args.file_id, file_name: download.fileName, content_type: download.contentType, size: download.bytes.length, sha256: download.sha256, base64: download.bytes.toString('base64') };
         }
         break;
       }
-      case 'box_create_folder': result = await new BoxClient(boxToken(context)).createFolder(args.name, args.parent_folder_id); break;
-      case 'box_create_document': result = await new BoxClient(boxToken(context)).createDocument(args as any); break;
-      case 'box_rename': result = await new BoxClient(boxToken(context)).rename(args as any); break;
-      case 'box_move': result = await new BoxClient(boxToken(context)).move(args as any); break;
-      case 'box_upload': result = await new BoxClient(boxToken(context)).upload(args as any); break;
-      case 'box_spreadsheet_update': result = await new BoxClient(boxToken(context)).updateSpreadsheet(args as any); break;
+      case 'box_create_folder': result = await withBoxClient(context, 'box_create_folder', (client) => client.createFolder(args.name, args.parent_folder_id)); break;
+      case 'box_create_document': result = await withBoxClient(context, 'box_create_document', (client) => client.createDocument(args as any)); break;
+      case 'box_rename': result = await withBoxClient(context, 'box_rename', (client) => client.rename(args as any)); break;
+      case 'box_move': result = await withBoxClient(context, 'box_move', (client) => client.move(args as any)); break;
+      case 'box_upload': result = await withBoxClient(context, 'box_upload', (client) => client.upload(args as any)); break;
+      case 'box_spreadsheet_update': result = await withBoxClient(context, 'box_spreadsheet_update', (client) => client.updateSpreadsheet(args as any)); break;
       case 'knowledge_retrieve': {
         const limit = Math.min(Math.max(args.limit || 10, 1), 50);
         const [box, notion] = await Promise.all([
-          args.include_box ? new BoxClient(boxToken(context)).search({ query: args.query, limit }).catch((error) => ({ error: error instanceof Error ? error.message : String(error) })) : Promise.resolve(null),
+          args.include_box ? withBoxClient(context, 'knowledge_retrieve:box_search', (client) => client.search({ query: args.query, limit })).catch((error) => ({ error: error instanceof Error ? error.message : String(error) })) : Promise.resolve(null),
           args.include_notion ? auditLedger.retrieveNotion(args.query, limit, context.notionAccessToken, context.vercelOidcToken) : Promise.resolve(null),
         ]);
         result = { query: args.query, box, notion };
