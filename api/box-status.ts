@@ -10,8 +10,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   res.end(JSON.stringify({
     provider: 'box',
     direct_access_token_configured: Boolean(process.env.BOX_ACCESS_TOKEN),
+    keymaster_access_token_ref_configured: Boolean(process.env.BOX_ACCESS_TOKEN_REF),
     oauth_client_configured: Boolean(process.env.BOX_CLIENT_ID && process.env.BOX_CLIENT_SECRET),
     delegated_capability_supported: true,
-    required_for_writes: 'BOX_ACCESS_TOKEN or x-box-access-token',
+    required_for_writes: 'BOX_ACCESS_TOKEN_REF, BOX_ACCESS_TOKEN, or x-box-access-token',
   }));
 }

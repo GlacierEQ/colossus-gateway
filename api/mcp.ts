@@ -36,7 +36,7 @@ function setCors(req: IncomingMessage, res: ServerResponse) {
   }
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "authorization, content-type, x-colossus-operator",
+    "authorization, content-type, x-colossus-operator, x-box-access-token, x-notion-token, x-vercel-oidc-token, x-request-id",
   );
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 }

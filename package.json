@@ -6,7 +6,6 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "tsx src/index.ts",
-    "postinstall": "node scripts/vercel-install-gate.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:api": "tsc -p tsconfig.api.json",
     "build": "npm run typecheck:api && npm run test:runtime && tsc",
@@ -16,7 +15,8 @@
     "verify:public": "node scripts/verify-public-surface.mjs",
     "verify": "npm run typecheck && npm run typecheck:api && npm test && npm run audit:prod && npm run verify:public",
     "test:owned": "vitest run tests/ownedInvocation.test.ts",
-    "test:runtime": "vitest run tests/ownedInvocation.test.ts tests/memoryRouter.test.ts"
+    "test:runtime": "vitest run tests/ownedInvocation.test.ts tests/memoryRouter.test.ts tests/boxBridge.test.ts tests/boxKeymasterAuth.test.ts",
+    "verify:deployment": "node scripts/vercel-install-gate.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
