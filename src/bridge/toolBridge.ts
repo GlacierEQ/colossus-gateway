@@ -215,19 +215,20 @@ export async function executeTool(name: string, args: Record<string, any>, conte
         const delegated = await delegatedResult(args);
         if (delegated) result = { item_id: args.item_id, content: delegated };
         else {
-          const client = await withBoxClient(context, 'box_get', async (resolved) => resolved);
-          const metadata = await client.get(args as any);
-          const content = args.include_content && args.item_type !== 'folder'
-            ? await client.downloadRaw(args.item_id, args.max_bytes || 20 * 1024 * 1024).then((download) => ({
-                file_name: download.fileName,
-                content_type: download.contentType,
-                size: download.bytes.length,
-                sha256: download.sha256,
-                base64: download.bytes.toString('base64'),
-                text: isTextContent(download.contentType, download.fileName) ? download.bytes.toString('utf8') : undefined,
-              }))
-            : undefined;
-          result = { metadata, content };
+          result = await withBoxClient(context, 'box_get', async (client) => {
+            const metadata = await client.get(args as any);
+            const content = args.include_content && args.item_type !== 'folder'
+              ? await client.downloadRaw(args.item_id, args.max_bytes || 20 * 1024 * 1024).then((download) => ({
+                  file_name: download.fileName,
+                  content_type: download.contentType,
+                  size: download.bytes.length,
+                  sha256: download.sha256,
+                  base64: download.bytes.toString('base64'),
+                  text: isTextContent(download.contentType, download.fileName) ? download.bytes.toString('utf8') : undefined,
+                }))
+              : undefined;
+            return { metadata, content };
+          });
         }
         break;
       }
