@@ -152,6 +152,23 @@ export class DropboxConnector implements ConnectorBase {
     return res.json() as Promise<{ id: string; path_display: string }>;
   }
 
+  async downloadNative(idOrPath: string): Promise<{ bytes: Uint8Array; id: string; name: string; path_display?: string; rev?: string; size: number; content_hash?: string }> {
+    const res = await fetch(`${DBX_CONTENT_BASE}/files/download`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.cfg.accessToken}`,
+        'Dropbox-API-Arg': JSON.stringify({ path: idOrPath }),
+      },
+    });
+    if (!res.ok) throw new Error(`[dropbox] Native download failed: ${res.status}: ${await res.text()}`);
+    const rawMeta = res.headers.get('Dropbox-API-Result');
+    if (!rawMeta) throw new Error('[dropbox] Native download missing provider metadata');
+    const meta = JSON.parse(rawMeta) as { id: string; name: string; path_display?: string; rev?: string; size: number; content_hash?: string };
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.byteLength !== meta.size) throw new Error(`[dropbox] Native byte count mismatch: metadata=${meta.size} downloaded=${bytes.byteLength}`);
+    return { bytes, ...meta };
+  }
+
   async listFolder(remotePath: string): Promise<{ name: string; path_display: string; '.tag': string }[]> {
     const fullPath = `${this.cfg.rootPath}/${remotePath}`.replace(/\/\//g, '/');
     const res = await fetch(`${DBX_API_BASE}/files/list_folder`, {
