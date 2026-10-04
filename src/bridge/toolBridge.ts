@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { auditLedger } from './audit.js';
 import { BoxApiError, BoxClient } from './boxClient.js';
+import { DropboxConnector } from '../godmind/connectors/cloud-storage.js';
 import { withBoxClient } from './boxAuth.js';
 import type { BridgeRequestContext } from './context.js';
 
@@ -115,6 +116,16 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         }, ['cell', 'row', 'column', 'value', 'sheet']),
       },
     }, ['file_id', 'sheet', 'updates']),
+  },
+  {
+    type: 'function', name: 'dropbox_to_box_native', strict: true,
+    description: 'Transfer an original Dropbox file directly into Box, verify byte identity by SHA-256 readback, and return provider custody metadata.',
+    parameters: object({
+      dropbox_id_or_path: { type: 'string', minLength: 1 },
+      box_parent_folder_id: { type: 'string', minLength: 1 },
+      file_name: { type: ['string', 'null'] },
+      content_type: { type: ['string', 'null'] },
+    }, ['dropbox_id_or_path', 'box_parent_folder_id', 'file_name', 'content_type']),
   },
   {
     type: 'function', name: 'knowledge_retrieve', strict: true,
@@ -247,6 +258,28 @@ export async function executeTool(name: string, args: Record<string, any>, conte
       case 'box_move': result = await withBoxClient(context, 'box_move', (client) => client.move(args as any)); break;
       case 'box_upload': result = await withBoxClient(context, 'box_upload', (client) => client.upload(args as any)); break;
       case 'box_spreadsheet_update': result = await withBoxClient(context, 'box_spreadsheet_update', (client) => client.updateSpreadsheet(args as any)); break;
+      case 'dropbox_to_box_native': {
+        const source = await new DropboxConnector({ rootPath: '' }).downloadNative(args.dropbox_id_or_path);
+        const sourceSha256 = createHash('sha256').update(source.bytes).digest('hex');
+        const targetName = args.file_name || source.name;
+        const uploaded: any = await withBoxClient(context, 'dropbox_to_box_native:upload', (client) =>
+          client.uploadNativeBytes(targetName, source.bytes, args.box_parent_folder_id, args.content_type || 'application/octet-stream'));
+        const boxFileId = String(uploaded?.entries?.[0]?.id || '');
+        if (!boxFileId) throw new BoxApiError('Box upload did not return a file ID', 502, uploaded);
+        const readback = await withBoxClient(context, 'dropbox_to_box_native:readback', (client) => client.downloadRaw(boxFileId));
+        if (readback.sha256 !== sourceSha256 || readback.bytes.length !== source.bytes.byteLength) {
+          throw new BoxApiError('EVIDENCE_INTEGRITY_MISMATCH: Box readback does not match Dropbox source bytes', 412, {
+            source_sha256: sourceSha256, box_sha256: readback.sha256,
+            source_size: source.bytes.byteLength, box_size: readback.bytes.length, box_file_id: boxFileId,
+          });
+        }
+        result = {
+          integrity_verified: true,
+          source: { provider: 'dropbox', id: source.id, path: source.path_display, rev: source.rev, size: source.size, content_hash: source.content_hash, sha256: sourceSha256 },
+          destination: { provider: 'box', file_id: boxFileId, parent_folder_id: args.box_parent_folder_id, file_name: readback.fileName, size: readback.bytes.length, sha256: readback.sha256 },
+        };
+        break;
+      }
       case 'knowledge_retrieve': {
         const limit = Math.min(Math.max(args.limit || 10, 1), 50);
         const [box, notion] = await Promise.all([
