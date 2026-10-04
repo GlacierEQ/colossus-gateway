@@ -129,6 +129,11 @@ export class BoxClient {
     return response.json();
   }
 
+  async uploadNativeBytes(fileName: string, bytes: Uint8Array, parentFolderId: string, contentType = 'application/octet-stream') {
+    if (!bytes.byteLength) throw new BoxApiError('Native upload content is empty', 400);
+    return this.uploadBytes(fileName, bytes, parentFolderId, contentType);
+  }
+
   async createDocument(args: { file_name: string; content: string; parent_folder_id?: string; content_type?: string }) {
     return this.uploadBytes(args.file_name, Buffer.from(args.content, 'utf8'), args.parent_folder_id || '0', args.content_type || 'text/plain; charset=utf-8');
   }
