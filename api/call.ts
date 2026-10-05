@@ -1,7 +1,7 @@
-import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { auditLedger } from '../src/bridge/audit.js';
 import { executeTool } from '../src/bridge/toolBridge.js';
+import { isToolCallAuthorized } from '../src/lib/requestAuth.js';
 
 const DELEGATED_MAX_BYTES = 1024 * 1024;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -9,15 +9,6 @@ const SHA256 = /^[0-9a-f]{64}$/;
 function header(req: IncomingMessage, name: string): string | undefined {
   const value = req.headers[name.toLowerCase()];
   return Array.isArray(value) ? value[0] : value;
-}
-
-function authorized(req: IncomingMessage): boolean {
-  const expected = process.env.COLOSSUS_TOOL_KEY || process.env.COLOSSUS_KEY;
-  if (!expected) return process.env.ALLOW_UNAUTHENTICATED_TOOL_CALLS === 'true';
-  const bearer = header(req, 'authorization')?.replace(/^Bearer\s+/i, '') || header(req, 'x-colossus-key') || '';
-  const a = Buffer.from(bearer);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function delegatedCapabilityRead(input: any): boolean {
@@ -84,15 +75,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     const delegatedRead = delegatedCapabilityRead(input);
     const connectorRead = connectorHandoff(input);
+    const directAuthorized = isToolCallAuthorized(req.headers as Record<string, string | string[] | undefined>);
     let connectorAuthorized = false;
-    if (!authorized(req) && !delegatedRead && connectorRead) {
+    if (!directAuthorized && !delegatedRead && connectorRead) {
       connectorAuthorized = await auditLedger.consumeCapability(
         header(req, 'x-apex-capability') || '',
         input.name,
         String(input.arguments.connector_sha256).toLowerCase(),
       );
     }
-    if (!authorized(req) && !delegatedRead && !connectorAuthorized) {
+    if (!directAuthorized && !delegatedRead && !connectorAuthorized) {
       res.writeHead(401, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: 'unauthorized' }));
       return;
