@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import notionCallHandler from '../api/notion-call.js';
 import { AuditLedger } from '../src/bridge/audit.js';
 import { getActiveSessions, validateOperatorCode } from '../src/lib/operatorAuth.js';
+import { isCronAuthorized, isToolCallAuthorized } from '../src/lib/requestAuth.js';
 
 function responseRecorder() {
   let status = 0;
@@ -11,7 +12,38 @@ function responseRecorder() {
     response: {
       writeHead(code: number, values?: Record<string, unknown>) {
         status = code;
-        Object.assign(headers, values || {});
+        Object.assign(headers, values || {  it('fails closed for cron execution when CRON_SECRET is missing', () => {
+    expect(isCronAuthorized(undefined, {})).toBe(false);
+  });
+
+  it('requires the exact cron bearer secret', () => {
+    const env = { CRON_SECRET: 'cron-secret' };
+    expect(isCronAuthorized('Bearer cron-secret', env)).toBe(true);
+    expect(isCronAuthorized('Bearer wrong', env)).toBe(false);
+  });
+
+  it('never permits the unauthenticated tool escape hatch in production', () => {
+    const env = {
+      ALLOW_UNAUTHENTICATED_TOOL_CALLS: 'true',
+      NODE_ENV: 'production',
+    };
+    expect(isToolCallAuthorized({}, env)).toBe(false);
+  });
+
+  it('preserves explicitly opted-in unauthenticated tool calls outside production', () => {
+    const env = {
+      ALLOW_UNAUTHENTICATED_TOOL_CALLS: 'true',
+      NODE_ENV: 'development',
+    };
+    expect(isToolCallAuthorized({}, env)).toBe(true);
+  });
+
+  it('accepts an exact tool bearer when a gateway key is configured', () => {
+    const env = { COLOSSUS_TOOL_KEY: 'tool-secret', NODE_ENV: 'production' };
+    expect(isToolCallAuthorized({ authorization: 'Bearer tool-secret' }, env)).toBe(true);
+    expect(isToolCallAuthorized({ authorization: 'Bearer wrong' }, env)).toBe(false);
+  });
+});
         return this;
       },
       end(value?: unknown) {
