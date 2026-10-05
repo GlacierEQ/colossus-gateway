@@ -10,7 +10,7 @@ const SOURCE_PATH = resolve(
 );
 const RECEIPT_PATH = resolve(
   ROOT,
-  "docs/receipts/2026-08-11-keymaster-oidc-broker-v3.json",
+  "docs/receipts/2026-10-05-keymaster-oidc-broker-v5.json",
 );
 
 function gitBlobSha(content: Buffer): string {
@@ -25,9 +25,9 @@ describe("Keymaster GitHub OIDC broker source contract", () => {
 
     expect(gitBlobSha(source)).toBe(receipt.source_git_blob_sha);
     expect(receipt.supabase.function_slug).toBe("apex-github-oidc-broker");
-    expect(receipt.supabase.deployed_version).toBe(3);
-    expect(receipt.supabase.status).toBe("ACTIVE");
-    expect(receipt.supabase.deployment_bundle_sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(receipt.supabase.deployed_version).toBe(5);
+    expect(receipt.supabase.function_status).toBe("ACTIVE");
+    expect(receipt.supabase.provider_ezbr_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("keeps the broad resolver token internal and revokes it before scoped mint", () => {
@@ -106,5 +106,28 @@ describe("Keymaster live read-dependency admission", () => {
     expect(source).toContain("repository_not_allowlisted");
     expect(source).toContain("dynamicReadOnlyWorkload");
     expect(source).toContain("if (!dynamicReadOnlyWorkload && !allowed.includes(repository))");
+  });
+});
+
+
+describe("Keymaster trusted workflow boundary", () => {
+  it("trusts only the two exact public-runner workflow identities needed for execution", () => {
+    const source = readFileSync(SOURCE_PATH, "utf8");
+
+    expect(source).toContain("const TRUSTED_WORKFLOW_REFS = new Set([");
+    expect(source).toContain(
+      '"GlacierEQ/public-actions-runner-host/.github/workflows/apex-pillar-runner.yml@refs/heads/main"',
+    );
+    expect(source).toContain(
+      '"GlacierEQ/public-actions-runner-host/.github/workflows/private-ci-relay.yml@refs/heads/main"',
+    );
+    expect(source).toContain(
+      '!TRUSTED_WORKFLOW_REFS.has(claim(p, "workflow_ref"))',
+    );
+    expect(source).not.toContain(
+      'const TRUSTED_WORKFLOW_REF = "GlacierEQ/public-actions-runner-host/.github/workflows/apex-pillar-runner.yml@refs/heads/main";',
+    );
+    expect(source).not.toContain("workflow_ref).startsWith");
+    expect(source).not.toContain("workflow_ref).includes");
   });
 });
