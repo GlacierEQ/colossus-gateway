@@ -1,0 +1,46 @@
+{
+  "schema": "glaciereq.keymaster.oidc-broker-provider-readback-receipt.v2",
+  "source_authority": "GlacierEQ/colossus-gateway",
+  "source_path": "supabase/functions/apex-github-oidc-broker/index.ts",
+  "source_git_blob_sha": "85f193e0074e9def79c87f6abf509671e8ea7e5c",
+  "displaced_source_preserved_at": "legacy/supabase/functions/apex-github-oidc-broker/index-pre-v5-provider-readback-20261004.ts",
+  "displaced_source_git_blob_sha": "635ecd58c0540c38271cadcd7883959f8e45f696",
+  "donor": {
+    "pull_request": 41,
+    "revision": "27955435d6dbf22360fed9b2c2518331dc21053f",
+    "source_git_blob_sha": "85f193e0074e9def79c87f6abf509671e8ea7e5c",
+    "exact_provider_source_match": true
+  },
+  "supabase": {
+    "project_ref": "dyhprklicgewmrimecey",
+    "project_name": "supabase-backend-ops",
+    "project_status": "ACTIVE_HEALTHY",
+    "function_slug": "apex-github-oidc-broker",
+    "function_id": "6ff8793b-f797-4f69-b692-addd4f993174",
+    "deployed_version": 5,
+    "function_status": "ACTIVE",
+    "verify_jwt": false,
+    "provider_updated_at": "2026-09-30T18:59:08.849Z",
+    "provider_ezbr_sha256": "faebdb0eef3743c07df6fe4393bcaa2be5f86b721b063bca8c12a701be1935f2"
+  },
+  "verified_security_delta": {
+    "trusted_workflow_policy": "two exact workflow_ref identities; no prefix or substring matching",
+    "trusted_workflows": [
+      "GlacierEQ/public-actions-runner-host/.github/workflows/apex-pillar-runner.yml@refs/heads/main",
+      "GlacierEQ/public-actions-runner-host/.github/workflows/private-ci-relay.yml@refs/heads/main"
+    ],
+    "repository_scope": "exact live installation membership plus repository_ids-scoped workload token",
+    "resolver_token_returned": false,
+    "resolver_token_revoked_before_workload_mint": true,
+    "workload_token_exact_repository_readback_required": true
+  },
+  "evidence": {
+    "provider_readback": "Supabase get_project + get_edge_function",
+    "provider_source_equivalence": "Tracked repair-branch source and PR #41 donor were compared to the live v5 index.ts and matched byte-for-byte.",
+    "historical_v3_receipt_preserved": "docs/receipts/2026-08-11-keymaster-oidc-broker-v3.json"
+  },
+  "truth_boundary": {
+    "current_state": "SOURCE_BOUND_PROVIDER_READBACK",
+    "no_claim": "This receipt records current provider state and exact source equivalence. It does not rewrite or invalidate the historical v3 deployment receipt."
+  }
+}
