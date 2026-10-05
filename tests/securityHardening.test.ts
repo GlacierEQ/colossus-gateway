@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import notionCallHandler from '../api/notion-call.js';
+import boxStatusHandler from '../api/box-status.js';
 import { AuditLedger } from '../src/bridge/audit.js';
 import { getActiveSessions, validateOperatorCode } from '../src/lib/operatorAuth.js';
 import { isCronAuthorized, isToolCallAuthorized } from '../src/lib/requestAuth.js';
@@ -28,6 +30,10 @@ const originalEnv = {
   COLOSSUS_TOOL_KEY: process.env.COLOSSUS_TOOL_KEY,
   COLOSSUS_OPERATOR_GUID: process.env.COLOSSUS_OPERATOR_GUID,
   NOTION_TOKEN: process.env.NOTION_TOKEN,
+  COLOSSUS_KEY: process.env.COLOSSUS_KEY,
+  ALLOW_UNAUTHENTICATED_TOOL_CALLS: process.env.ALLOW_UNAUTHENTICATED_TOOL_CALLS,
+  NODE_ENV: process.env.NODE_ENV,
+  VERCEL_ENV: process.env.VERCEL_ENV,
 };
 
 afterEach(() => {
@@ -107,6 +113,32 @@ describe('security hardening', () => {
     const env = { COLOSSUS_TOOL_KEY: 'tool-secret', NODE_ENV: 'production' };
     expect(isToolCallAuthorized({ authorization: 'Bearer tool-secret' }, env)).toBe(true);
     expect(isToolCallAuthorized({ authorization: 'Bearer wrong' }, env)).toBe(false);
+  });
+
+
+  it('requires authentication for Box status in production', async () => {
+    delete process.env.COLOSSUS_TOOL_KEY;
+    delete process.env.COLOSSUS_KEY;
+    delete process.env.ALLOW_UNAUTHENTICATED_TOOL_CALLS;
+    process.env.NODE_ENV = 'production';
+
+    const req = {
+      method: 'GET',
+      url: '/box/status',
+      headers: {},
+    } as any;
+    const recorder = responseRecorder();
+
+    await boxStatusHandler(req, recorder.response);
+
+    expect(recorder.result().status).toBe(401);
+  });
+
+  it('does not retain the one-shot NEX mutation escape hatch on the public Box status route', () => {
+    const source = readFileSync(new URL('../api/box-status.ts', import.meta.url), 'utf8');
+    expect(source).not.toContain("operator_action");
+    expect(source).not.toContain("dropbox_to_box_native");
+    expect(source).not.toContain("cherry NEX 6.m4a");
   });
 
 });
