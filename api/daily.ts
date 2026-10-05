@@ -6,11 +6,10 @@
 
 import type { VercelRequest, VercelResponse } from '../src/types/vercel.js';
 import { runFullSync } from '../src/apex-sync.js';
+import { isCronAuthorized } from '../src/lib/requestAuth.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const authHeader = req.headers.authorization;
-  const expected = `Bearer ${process.env.CRON_SECRET ?? ''}`;
-  if (process.env.CRON_SECRET && authHeader !== expected) {
+  if (!isCronAuthorized(req.headers.authorization)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
