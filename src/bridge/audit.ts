@@ -52,7 +52,6 @@ function sanitize(value: unknown, key = ''): unknown {
 
 export class AuditLedger {
   private readonly supabase: SupabaseClient | null;
-  private readonly capabilitySupabase: SupabaseClient;
   private readonly notion: NotionClient | null;
 
   constructor() {
