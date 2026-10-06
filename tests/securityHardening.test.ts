@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import notionCallHandler from '../api/notion-call.js';
 import boxStatusHandler from '../api/box-status.js';
+import functionsHandler from '../api/functions.js';
+import healthHandler from '../api/health.js';
 import { AuditLedger } from '../src/bridge/audit.js';
 import { getActiveSessions, validateOperatorCode } from '../src/lib/operatorAuth.js';
 import { isCronAuthorized, isToolCallAuthorized } from '../src/lib/requestAuth.js';
@@ -139,6 +141,43 @@ describe('security hardening', () => {
     expect(source).not.toContain("operator_action");
     expect(source).not.toContain("dropbox_to_box_native");
     expect(source).not.toContain("cherry NEX 6.m4a");
+  });
+
+
+  it('requires authentication before returning the mutation-capable function catalog in production', async () => {
+    delete process.env.COLOSSUS_TOOL_KEY;
+    delete process.env.COLOSSUS_KEY;
+    delete process.env.ALLOW_UNAUTHENTICATED_TOOL_CALLS;
+    process.env.NODE_ENV = 'production';
+
+    const req = { method: 'GET', headers: {} } as any;
+    const recorder = responseRecorder();
+
+    await functionsHandler(req, recorder.response);
+
+    expect(recorder.result().status).toBe(401);
+    expect(JSON.parse(recorder.result().body)).toEqual({ error: 'unauthorized' });
+  });
+
+  it('keeps the anonymous API health response minimal', () => {
+    const req = { method: 'GET', headers: {} } as any;
+    const recorder = responseRecorder();
+
+    healthHandler(req, recorder.response);
+
+    expect(recorder.result().status).toBe(200);
+    expect(JSON.parse(recorder.result().body)).toEqual({ status: 'ok' });
+  });
+
+  it('keeps the routed /health response free of version and workload identity details', () => {
+    const source = readFileSync(new URL('../api/mcp.ts', import.meta.url), 'utf8');
+    const healthBranch = source.match(/if \(req\.method === "GET" && path === "\/health"\) \{([\s\S]*?)\n  \}/)?.[1] ?? '';
+
+    expect(healthBranch).toContain('status: "ok"');
+    expect(healthBranch).not.toContain('GATEWAY_VERSION');
+    expect(healthBranch).not.toContain('workload_identity_available');
+    expect(healthBranch).not.toContain('owned_invocation');
+    expect(healthBranch).not.toContain('active_bridge');
   });
 
 });

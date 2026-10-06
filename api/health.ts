@@ -1,13 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { GATEWAY_VERSION } from "../src/constants.js";
 
-export default function handler(_req: IncomingMessage, res: ServerResponse) {
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({
-    status: "ok",
-    gateway: "colossus-gateway",
-    version: GATEWAY_VERSION,
-    transport: "HTTP/Vercel",
-    timestamp: new Date().toISOString(),
-  }));
+export default function handler(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== "GET") {
+    res.writeHead(405, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify({ error: "method_not_allowed" }));
+    return;
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+  });
+  res.end(JSON.stringify({ status: "ok" }));
 }

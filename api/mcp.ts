@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { runBridgeContext } from "../src/bridge/context.js";
-import { GATEWAY_VERSION } from "../src/constants.js";
 import { authorizeRequest } from "../src/lib/operatorAuth.js";
 import { hydrateOwnedContext, invokeOwnedModel } from "../src/lib/ownedInvocation.js";
 import {
@@ -212,16 +211,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   if (req.method === "GET" && path === "/health") {
-    sendJson(res, 200, {
-      status: "ok",
-      gateway: "colossus-gateway",
-      version: GATEWAY_VERSION,
-      active_bridge: true,
-      owned_invocation: true,
-      workload_identity_available: Boolean(
-        header(req, "x-vercel-oidc-token") || process.env.VERCEL_OIDC_TOKEN,
-      ),
-    });
+    sendJson(res, 200, { status: "ok" });
     return;
   }
 
