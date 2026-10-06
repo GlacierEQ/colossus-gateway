@@ -367,6 +367,47 @@ Deno.serve(async (req: Request) => {
       return json(200, { ok: true, ...data, identity_environment: identity.environment });
     }
 
+    if (action === "gateway_capability_consume") {
+      const nonceHash = text(input.nonce_hash, 64).toLowerCase();
+      const allowedTool = text(input.allowed_tool, 128);
+      const expectedSha256 = text(input.expected_sha256, 64).toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(nonceHash)) throw new Error("invalid_nonce_hash");
+      if (!/^[0-9a-f]{64}$/.test(expectedSha256)) throw new Error("invalid_expected_sha256");
+
+      const { data, error } = await admin.rpc("consume_apex_tool_gateway_capability", {
+        p_nonce_hash: nonceHash,
+        p_allowed_tool: allowedTool,
+        p_expected_sha256: expectedSha256,
+      });
+      if (error) throw new Error(error.message || "gateway_capability_consume_failed");
+      return json(200, {
+        ok: true,
+        consumed: data === true,
+        identity_environment: identity.environment,
+      });
+    }
+
+    if (action === "gateway_event_record") {
+      if (!input.event || typeof input.event !== "object" || Array.isArray(input.event)) {
+        throw new Error("invalid_gateway_event");
+      }
+      const event = input.event as Record<string, unknown>;
+      if (new TextEncoder().encode(JSON.stringify(event)).byteLength > 32768) {
+        throw new Error("gateway_event_too_large");
+      }
+
+      const { data, error } = await admin.rpc("record_apex_tool_gateway_event", {
+        p_event: event,
+      });
+      if (error) throw new Error(error.message || "gateway_event_record_failed");
+      return json(200, {
+        ok: true,
+        recorded: data?.recorded === true,
+        id: typeof data?.id === "string" ? data.id : undefined,
+        identity_environment: identity.environment,
+      });
+    }
+
     if (action === "github_bootstrap_begin") {
       const state = text(input.state, 512);
       const stateHash = await sha256Hex(state);
