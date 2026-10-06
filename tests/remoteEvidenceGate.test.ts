@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { remoteExecutor } from "../src/lib/remoteExecutor.js";
-import { KNOWN_REMOTE_TOOLS } from "../src/lib/remoteExecutionPolicy.js";
+import { KNOWN_REMOTE_TOOLS, unverifiedLegacyEnabled } from "../src/lib/remoteExecutionPolicy.js";
 import { readFileSync } from "node:fs";
 
 afterEach(() => {
@@ -40,4 +40,24 @@ describe("remote execution evidence gate", () => {
 
     expect([...KNOWN_REMOTE_TOOLS].sort()).toEqual(implemented);
   });
+
+  it("never enables legacy registration in production", () => {
+    expect(unverifiedLegacyEnabled({
+      NODE_ENV: "production",
+      COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS: "true",
+    })).toBe(false);
+  });
+
+  it("keeps legacy tool registration behind the evidence gate", () => {
+    const source = readFileSync(new URL("../src/tools/index.ts", import.meta.url), "utf8");
+    const gate = source.indexOf("if (unverifiedLegacyEnabled())");
+    const verifiedCall = source.indexOf("registerMemoryTools(server);");
+    const legacyCall = source.indexOf("registerWhisperXTools(server);");
+
+    expect(gate).toBeGreaterThan(-1);
+    expect(verifiedCall).toBeGreaterThan(-1);
+    expect(verifiedCall).toBeLessThan(gate);
+    expect(legacyCall).toBeGreaterThan(gate);
+  });
+
 });
