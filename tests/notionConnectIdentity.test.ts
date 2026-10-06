@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@vercel/oidc", () => ({
@@ -24,4 +25,13 @@ describe("Notion connect workload identity", () => {
 
     await expect(resolveNotionConnectOidcToken()).resolves.toBe("");
   });
+
+  it("does not trust a browser-supplied Vercel OIDC header", () => {
+    const source = readFileSync(new URL("../api/notion-connect.ts", import.meta.url), "utf8");
+
+    expect(source).toContain("await resolveNotionConnectOidcToken()");
+    expect(source).not.toContain("requestHeader(req, 'x-vercel-oidc-token')");
+    expect(source).toContain("'x-vercel-oidc-token': oidcToken");
+  });
+
 });
