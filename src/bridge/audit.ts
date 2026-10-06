@@ -20,7 +20,6 @@ export interface AuditEvent {
 }
 
 const CAPABILITY_SUPABASE_URL = process.env.APEX_CAPABILITY_SUPABASE_URL || 'https://dyhprklicgewmrimecey.supabase.co';
-const CAPABILITY_SUPABASE_PUBLISHABLE_KEY = process.env.APEX_CAPABILITY_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6ImR5aHBya2xpY2dld21yaW1lY2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI5NTkxMjUsImV4cCI6MjA2ODUzNTEyNX0.KSddhx8HBzWFM73hdM-p_IChuI8bdb5UitmehQYXRtI';
 const SECRET_KEY = /token|secret|password|authorization|private[_-]?key|download[_-]?url|content[_-]?base64|capability|oidc/i;
 const CONTENT_KEY = /(^|_)(content|body|text|bytes|data)$/i;
 const BROKER_TIMEOUT_MS = 10_000;
