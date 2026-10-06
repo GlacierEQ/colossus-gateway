@@ -83,7 +83,8 @@ export function classifyRemoteExecution(toolName: string): RemoteExecutionEviden
 }
 
 export function unverifiedLegacyEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS === "true";
+  const production = env.NODE_ENV === "production" || env.VERCEL_ENV === "production";
+  return !production && env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS === "true";
 }
 
 export function remoteExecutionInventory() {
