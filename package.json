@@ -48,7 +48,8 @@
     "hono": "4.13.10",
     "ip-address": "10.7.2",
     "qs": "6.16.0",
-    "express-rate-limit": "8.7.0"
+    "express-rate-limit": "8.7.0",
+    "proxy-addr": "2.0.8"
   },
   "engines": {
     "node": "24.x"
