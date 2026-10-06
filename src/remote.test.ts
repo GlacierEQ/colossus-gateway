@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { remoteExecutor } from './lib/remoteExecutor.js';
+import { KNOWN_REMOTE_TOOLS } from './lib/remoteExecutionPolicy.js';
 
 describe('RemoteExecutor', () => {
   beforeEach(() => {
@@ -36,6 +38,27 @@ describe('RemoteExecutor', () => {
       expect(result.data.provider_backed).toContain('notion.search');
       expect(result.data.blocked_unverified_legacy).toContain('whisperx.validate');
       expect(result.data).not.toHaveProperty('operational');
+    });
+
+    it('classifies every implemented RemoteExecutor switch action explicitly', () => {
+      const source = readFileSync(new URL('./lib/remoteExecutor.ts', import.meta.url), 'utf8');
+      const implemented = [...source.matchAll(/case\s+"([^"]+)":/g)]
+        .map((match) => match[1])
+        .sort();
+      const classified = [...KNOWN_REMOTE_TOOLS].sort();
+
+      expect(classified).toEqual(implemented);
+      expect(new Set(classified).size).toBe(classified.length);
+    });
+
+    it('cannot opt legacy simulations into production', async () => {
+      process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS = 'true';
+      process.env.NODE_ENV = 'production';
+
+      const result = await remoteExecutor.execute('whisperx.validate', { evidenceId: 'EXH-001' });
+
+      expect(result.success).toBe(false);
+      expect(result.data.evidence_state).toBe('BLOCKED_UNVERIFIED_LEGACY');
     });
   });
 
