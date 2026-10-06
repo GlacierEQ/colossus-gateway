@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Client as NotionClient } from '@notionhq/client';
-import { createClient, type SupabaseClient } fromimport { consumeGatewayCapability, recordGatewayEvent } from '../keymaster/gatewayAuthority.js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { consumeGatewayCapability, recordGatewayEvent } from '../keymaster/gatewayAuthority.js';
 
 export type AuditStatus = 'started' | 'succeeded' | 'failed' | 'blocked';
 
