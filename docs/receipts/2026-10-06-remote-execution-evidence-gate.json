@@ -1,0 +1,79 @@
+{
+  "schema": "glaciereq.remote-execution-evidence-gate-receipt.v1",
+  "recorded_at": "2026-10-06T03:06:30Z",
+  "repository": "GlacierEQ/colossus-gateway",
+  "branch": "repair/evidence-gate-remote-executor-20261006",
+  "verified_revision": "0f6494de36cf286d1c8d69fae643d84033db4317",
+  "objective": "Prevent synthetic legacy RemoteExecutor actions from being advertised or executed as production capabilities without evidence.",
+  "evidence_model": {
+    "provider_backed": [
+      "supabase.query",
+      "notion.search",
+      "notion.validate",
+      "mem0.add",
+      "mem0.search",
+      "github.list_repos",
+      "github.get_file"
+    ],
+    "local_deterministic": [
+      "gateway.discover"
+    ],
+    "unverified_legacy_count": 44,
+    "default_state": "BLOCKED_UNVERIFIED_LEGACY",
+    "production_override": "DISALLOWED",
+    "nonproduction_review_opt_in": "COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS=true"
+  },
+  "lossless_preservation": {
+    "executor": "legacy/src/lib/remoteExecutor-pre-evidence-gate-20261006.ts",
+    "tool_registry": "legacy/src/tools/index-pre-evidence-gate-20261006.ts"
+  },
+  "source_blobs": {
+    "remote_execution_policy": "4a80f9baf484fc56210821ff1c26a9c3af6fe0d7",
+    "remote_executor": "30367651d5057707cbdac065bdc8019f72d85f07",
+    "tool_registry": "aa482e9f1517e9e5faec1cf0a1d5f96c9a715ecd",
+    "focused_runtime_test": "5f8dc2222679f4cc0d8ba1be019c75c31181a6f7",
+    "legacy_contract_test": "9f065f97c677a201b97bc5ba6728086d876b03aa",
+    "package_json": "a44ce45fcf3594691f35033ae26feeef33f212ff"
+  },
+  "test_evidence": {
+    "red": {
+      "workflow": "Public MCP Truth Gate",
+      "run_id": 37406803554,
+      "revision": "97cc15038cd0987b3cc9a4da81dbd344ce937c5a",
+      "result": "FAILURE_EXPECTED",
+      "observed": [
+        "synthetic whisperx.validate still returned success",
+        "gateway.discover lacked evidence classification"
+      ]
+    },
+    "green": [
+      {
+        "workflow": "TypeScript Gateway CI",
+        "run_id": 37407367184,
+        "result": "SUCCESS"
+      },
+      {
+        "workflow": "Gauntlet Memory CI",
+        "run_id": 37407367267,
+        "result": "SUCCESS"
+      },
+      {
+        "workflow": "Public MCP Truth Gate",
+        "run_id": 37407367275,
+        "result": "SUCCESS"
+      }
+    ]
+  },
+  "invariants": [
+    "Every implemented RemoteExecutor switch action is explicitly classified.",
+    "Unknown actions retain implementation-default rejection.",
+    "Unverified legacy actions are blocked by default.",
+    "Legacy opt-in cannot activate in NODE_ENV=production or VERCEL_ENV=production.",
+    "Synthetic legacy registration is omitted from the normal production MCP registry.",
+    "Provider-backed and deterministic actions remain available."
+  ],
+  "truth_boundary": {
+    "state": "VERIFIED_AT_REPOSITORY_CI",
+    "note": "This receipt proves repository behavior at the verified revision. Provider deployment/readback is recorded separately after deployment verification."
+  }
+}

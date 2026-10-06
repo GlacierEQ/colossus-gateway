@@ -1,9 +1,74 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { remoteExecutor } from './lib/remoteExecutor.js';
+import { KNOWN_REMOTE_TOOLS } from './lib/remoteExecutionPolicy.js';
+
+const originalNodeEnv = process.env.NODE_ENV;
+const originalVercelEnv = process.env.VERCEL_ENV;
 
 describe('RemoteExecutor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NODE_ENV = 'test';
+    delete process.env.VERCEL_ENV;
+    process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS = 'true';
+  });
+
+  afterEach(() => {
+    delete process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+    if (originalVercelEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = originalVercelEnv;
+  });
+
+  describe('evidence gate', () => {
+    it('blocks an unverified synthetic action by default', async () => {
+      delete process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS;
+
+      const result = await remoteExecutor.execute('whisperx.validate', { evidenceId: 'EXH-001' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('UNVERIFIED_LEGACY_TOOL_DISABLED');
+      expect(result.data).toEqual({
+        evidence_state: 'BLOCKED_UNVERIFIED_LEGACY',
+        tool: 'whisperx.validate',
+        explicit_opt_in_required: 'COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS=true',
+      });
+    });
+
+    it('reports evidence classes instead of calling synthetic capabilities operational', async () => {
+      delete process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS;
+
+      const result = await remoteExecutor.execute('gateway.discover', {});
+
+      expect(result.success).toBe(true);
+      expect(result.data.evidence_state).toBe('LOCAL_DETERMINISTIC');
+      expect(result.data.provider_backed).toContain('notion.search');
+      expect(result.data.blocked_unverified_legacy).toContain('whisperx.validate');
+      expect(result.data).not.toHaveProperty('operational');
+    });
+
+    it('classifies every implemented RemoteExecutor switch action explicitly', () => {
+      const source = readFileSync(new URL('./lib/remoteExecutor.ts', import.meta.url), 'utf8');
+      const implemented = [...source.matchAll(/case\s+"([^"]+)":/g)]
+        .map((match) => match[1])
+        .sort();
+      const classified = [...KNOWN_REMOTE_TOOLS].sort();
+
+      expect(classified).toEqual(implemented);
+      expect(new Set(classified).size).toBe(classified.length);
+    });
+
+    it('cannot opt legacy simulations into production', async () => {
+      process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS = 'true';
+      process.env.NODE_ENV = 'production';
+
+      const result = await remoteExecutor.execute('whisperx.validate', { evidenceId: 'EXH-001' });
+
+      expect(result.success).toBe(false);
+      expect(result.data.evidence_state).toBe('BLOCKED_UNVERIFIED_LEGACY');
+    });
   });
 
   describe('piston.deploy', () => {
@@ -156,13 +221,14 @@ describe('RemoteExecutor', () => {
   });
 
   describe('gateway.discover', () => {
-    it('returns full capability catalog', async () => {
+    it('returns an evidence-classified capability inventory', async () => {
       const result = await remoteExecutor.execute('gateway.discover', {});
       expect(result.success).toBe(true);
       expect(result.data.system).toContain('Colossus Gateway');
-      expect(result.data.capabilities.operational.length).toBeGreaterThan(0);
-      expect(result.data.capabilities.intelligence.length).toBeGreaterThan(0);
-      expect(result.data.capabilities.stealth.length).toBeGreaterThan(0);
+      expect(result.data.evidence_state).toBe('LOCAL_DETERMINISTIC');
+      expect(result.data.provider_backed).toContain('github.list_repos');
+      expect(result.data.blocked_unverified_legacy).toContain('stealth.strike');
+      expect(result.data).not.toHaveProperty('capabilities');
     });
   });
 

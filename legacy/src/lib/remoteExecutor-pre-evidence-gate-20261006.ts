@@ -3,7 +3,6 @@ import { Client as NotionClient } from "@notionhq/client";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { mem0Add, mem0Search } from "./mem0.js";
 import { GATEWAY_VERSION } from "../constants.js";
-import { classifyRemoteExecution, remoteExecutionInventory, unverifiedLegacyEnabled } from "./remoteExecutionPolicy.js";
 
 export interface RemoteExecutionResult {
   success: boolean;
@@ -117,19 +116,6 @@ export class RemoteExecutor {
 
   async execute(toolName: string, payload: any): Promise<RemoteExecutionResult> {
     const args = payload || {};
-    const evidenceClass = classifyRemoteExecution(toolName);
-    if (evidenceClass === "UNVERIFIED_LEGACY" && !unverifiedLegacyEnabled()) {
-      return {
-        success: false,
-        error: "UNVERIFIED_LEGACY_TOOL_DISABLED",
-        data: {
-          evidence_state: "BLOCKED_UNVERIFIED_LEGACY",
-          tool: toolName,
-          explicit_opt_in_required: "COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS=true",
-        },
-      };
-    }
-
     try {
       switch (toolName) {
         // --- DATA LAYER ---
@@ -454,22 +440,17 @@ export class RemoteExecutor {
           return { success: true, data: extResult };
         }
 
-        case "gateway.discover": {
-          const inventory = remoteExecutionInventory();
-          await this.logEvent("OPERATIONS", "Gateway evidence inventory read", {
-            evidence_state: inventory.evidence_state,
-            provider_backed_count: inventory.provider_backed.length,
-            blocked_unverified_legacy_count: inventory.blocked_unverified_legacy.length,
-          });
-          return {
-            success: true,
-            data: {
-              ...inventory,
-              system: `Colossus Gateway ${GATEWAY_VERSION}`,
-              truth_boundary: "Registration is not execution evidence. Provider-backed actions still require successful provider readback.",
-            },
+        case "gateway.discover":
+          const catalog = {
+            operational: ["gemini.heartbeat", "kilo.maximize", "flow.orchestrate"],
+            intelligence: ["aspen.sync", "aspen.direct_link", "mastermind.strategize", "mastermind.process"],
+            knowledge: ["notion.search", "notion.validate", "mem0.memory_op", "github.list_repos"],
+            stealth: ["stealth.triad_execute", "stealth.strike", "stealth.build_matrix", "stealth.map_federal_matrix"],
+            pistons: ["piston.deploy"],
+            orchestration: ["plethora.deploy", "plethora.create_motion_chain"]
           };
-        }
+          await this.logEvent("OPERATIONS", "Gateway Discovery Executed", { catalog_depth: Object.keys(catalog).length });
+          return { success: true, data: { system: `Colossus Gateway ${GATEWAY_VERSION}`, protocol: "GlacierEQ v3.1", capabilities: catalog } };
 
         // --- INFINITY STONES & DAEMONS ---
         case "infinity.daemon_strike":
