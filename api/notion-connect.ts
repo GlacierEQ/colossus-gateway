@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { getVercelOidcToken } from '@vercel/oidc';
 import { auditLedger } from '../src/bridge/audit.js';
 
 const SUPABASE_URL = process.env.APEX_CAPABILITY_SUPABASE_URL || 'https://dyhprklicgewmrimecey.supabase.co';
@@ -8,6 +9,14 @@ const BROKER_TIMEOUT_MS = 10_000;
 function requestHeader(req: IncomingMessage, name: string): string | undefined {
   const value = req.headers[name.toLowerCase()];
   return Array.isArray(value) ? value[0] : value;
+}
+
+export async function resolveNotionConnectOidcToken(): Promise<string> {
+  try {
+    return (await getVercelOidcToken()) || '';
+  } catch {
+    return '';
+  }
 }
 
 function headers(contentType = 'application/json') {
@@ -104,7 +113,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  const oidcToken = requestHeader(req, 'x-vercel-oidc-token') || '';
+  const oidcToken = await resolveNotionConnectOidcToken();
   if (!oidcToken) {
     res.writeHead(503, headers());
     res.end(JSON.stringify({ error: 'workload_identity_unavailable' }));
