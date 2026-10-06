@@ -1,9 +1,42 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { remoteExecutor } from './lib/remoteExecutor.js';
 
 describe('RemoteExecutor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS = 'true';
+  });
+
+  afterEach(() => {
+    delete process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS;
+  });
+
+  describe('evidence gate', () => {
+    it('blocks an unverified synthetic action by default', async () => {
+      delete process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS;
+
+      const result = await remoteExecutor.execute('whisperx.validate', { evidenceId: 'EXH-001' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('UNVERIFIED_LEGACY_TOOL_DISABLED');
+      expect(result.data).toEqual({
+        evidence_state: 'BLOCKED_UNVERIFIED_LEGACY',
+        tool: 'whisperx.validate',
+        explicit_opt_in_required: 'COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS=true',
+      });
+    });
+
+    it('reports evidence classes instead of calling synthetic capabilities operational', async () => {
+      delete process.env.COLOSSUS_ENABLE_UNVERIFIED_LEGACY_TOOLS;
+
+      const result = await remoteExecutor.execute('gateway.discover', {});
+
+      expect(result.success).toBe(true);
+      expect(result.data.evidence_state).toBe('LOCAL_DETERMINISTIC');
+      expect(result.data.provider_backed).toContain('notion.search');
+      expect(result.data.blocked_unverified_legacy).toContain('whisperx.validate');
+      expect(result.data).not.toHaveProperty('operational');
+    });
   });
 
   describe('piston.deploy', () => {
