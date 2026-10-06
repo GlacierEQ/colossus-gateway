@@ -1,0 +1,59 @@
+{
+  "schema": "glaciereq.notion-connect-runtime-oidc-receipt.v1",
+  "recorded_at": "2026-10-06T03:12:00Z",
+  "repository": "GlacierEQ/colossus-gateway",
+  "branch": "repair/notion-connect-runtime-oidc-20261006",
+  "verified_revision": "16bad8840eec21c2888289562c6eac7b89125900",
+  "objective": "Resolve Vercel workload identity inside the Notion setup function instead of requiring a browser-supplied x-vercel-oidc-token.",
+  "security_contract": {
+    "identity_source": "@vercel/oidc getVercelOidcToken() inside server runtime",
+    "browser_oidc_header_trusted": false,
+    "canonical_origin_required": true,
+    "broker_header": "x-vercel-oidc-token",
+    "missing_runtime_identity": "503 workload_identity_unavailable"
+  },
+  "lossless_preservation": {
+    "displaced_handler": "legacy/api/notion-connect-browser-oidc-20261006.ts"
+  },
+  "source_blobs": {
+    "handler": "eb0f55952ba392119bd8281fb2e9ecefcb707185",
+    "tests": "d5448ad27cf80de05dcd2dea4b71a254cff42f74",
+    "package_json": "6948f191050e10ac182f0efbd678e3198c88c71d",
+    "legacy_handler": "6005b63e60cf84e9e87e1fdee1833a47879859fa"
+  },
+  "test_evidence": {
+    "red": {
+      "workflow": "TypeScript Gateway CI",
+      "run_id": 37407691001,
+      "revision": "20c35f071f95023a91327af9d4d138f162180a7a",
+      "result": "FAILURE_EXPECTED",
+      "observation": "resolveNotionConnectOidcToken was absent; both workload-identity tests failed."
+    },
+    "green": [
+      {
+        "workflow": "TypeScript Gateway CI",
+        "run_id": 37407796796,
+        "result": "SUCCESS"
+      },
+      {
+        "workflow": "Gauntlet Memory CI",
+        "run_id": 37407796800,
+        "result": "SUCCESS"
+      },
+      {
+        "workflow": "Public MCP Truth Gate",
+        "run_id": 37407796825,
+        "result": "SUCCESS"
+      }
+    ]
+  },
+  "deployment_evidence": {
+    "preview_deployment_id": "dpl_GvkV126QHjmCCUK6T2roLhctKJ5J",
+    "preview_revision": "16bad8840eec21c2888289562c6eac7b89125900",
+    "state": "READY"
+  },
+  "truth_boundary": {
+    "state": "VERIFIED_SOURCE_CI_AND_PREVIEW_BUILD",
+    "pending": "Production handler readback after merge; no Notion credential or setup capability is consumed by this receipt."
+  }
+}
