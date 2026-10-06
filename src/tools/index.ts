@@ -31,39 +31,46 @@ import { registerComposioTools } from "./composio.js";
 import { registerBoxBridgeTools } from "./boxBridge.js";
 import { registerNotionDirectTools } from "./notionDirect.js";
 import { registerComputerUserTools } from "./computerUser.js";
+import { unverifiedLegacyEnabled } from "../lib/remoteExecutionPolicy.js";
 
 export function registerTools(server: McpServer) {
+  // Default surface: deterministic diagnostics and provider-backed execution only.
   registerUniversalExecute(server);
   registerMemoryTools(server);
   registerComposioTools(server);
   registerPing(server);
-  registerHeartbeat(server);
-  registerKiloTools(server);
-  registerAspenTools(server);
-  registerMastermindTools(server);
-  registerMastermindTeamTools(server);
-  registerStealthTriadTools(server);
-  registerPlethoraTools(server);
-  registerPistonTools(server);
   registerKnowledgeTools(server);
   registerDataTools(server);
-  registerInfinityStonesTools(server);
-  registerWhisperXTools(server);
-  registerUpgradeTools(server);
-  registerColabTools(server);
-  registerExpansionTools(server);
-  registerPhotoTools(server);
-  registerDropboxTools(server);
-  registerClickUpTools(server);
-  registerEnergyTools(server);
-  registerSecurityTools(server);
-  registerLongHorizon(server);
-  registerBraveFrontier(server);
-  registerMyceliumTools(server);
-  registerShadowCompanion(server);
   registerGitHubTools(server);
-  registerOllamaTools(server);
   registerBoxBridgeTools(server);
   registerNotionDirectTools(server);
   registerComputerUserTools(server);
+
+  // Historical/synthetic capability remains preserved for non-production review,
+  // but is never advertised by the normal production MCP registry.
+  if (unverifiedLegacyEnabled()) {
+    registerHeartbeat(server);
+    registerKiloTools(server);
+    registerAspenTools(server);
+    registerMastermindTools(server);
+    registerMastermindTeamTools(server);
+    registerStealthTriadTools(server);
+    registerPlethoraTools(server);
+    registerPistonTools(server);
+    registerInfinityStonesTools(server);
+    registerWhisperXTools(server);
+    registerUpgradeTools(server);
+    registerColabTools(server);
+    registerExpansionTools(server);
+    registerPhotoTools(server);
+    registerDropboxTools(server);
+    registerClickUpTools(server);
+    registerEnergyTools(server);
+    registerSecurityTools(server);
+    registerLongHorizon(server);
+    registerBraveFrontier(server);
+    registerMyceliumTools(server);
+    registerShadowCompanion(server);
+    registerOllamaTools(server);
+  }
 }
