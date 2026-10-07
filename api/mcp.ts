@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { handleSigmaDispatch } from "../src/lib/sigmaDispatchReceiver.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { runBridgeContext } from "../src/bridge/context.js";
@@ -199,6 +200,12 @@ async function handleInvoke(req: IncomingMessage, res: ServerResponse) {
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url || "/", "https://colossus-gateway.invalid").pathname;
+
+  if (path === "/v1/dispatch") {
+    await handleSigmaDispatch(req, res);
+    return;
+  }
+
 
   if (req.method === "GET" && path === "/operator") {
     res.writeHead(200, {

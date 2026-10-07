@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { isToolCallAuthorized } from "../src/lib/requestAuth.js";
-import { remoteExecutionInventory } from "../src/lib/remoteExecutionPolicy.js";
+import { isToolCallAuthorized } from "./requestAuth.js";
+import { remoteExecutionInventory } from "./remoteExecutionPolicy.js";
 
 type JsonRecord = Record<string, unknown>;
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -137,7 +137,7 @@ function receipt(input: JsonRecord, status: "dispatched" | "blocked", reason?: s
  * are implemented and verified. A dispatched receipt is transport acceptance
  * of the local deterministic read, NOT provider confirmation.
  */
-export default async function handler(req: IncomingMessage, res: ServerResponse) {
+export async function handleSigmaDispatch(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== "POST") {
     reply(res, 405, { error: "method_not_allowed" });
     return;
