@@ -88,6 +88,10 @@
       "dest": "/api/mcp.ts"
     },
     {
+      "src": "/v1/dispatch",
+      "dest": "/api/colossus-dispatch.ts"
+    },
+    {
       "src": "/(.*)",
       "dest": "/api/mcp.ts"
     }
