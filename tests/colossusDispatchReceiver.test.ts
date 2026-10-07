@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
-import handler from "../api/colossus-dispatch.js";
+import { handleSigmaDispatch as handler } from "../src/lib/sigmaDispatchReceiver.js";
 
 const original = process.env.COLOSSUS_TOOL_KEY;
 

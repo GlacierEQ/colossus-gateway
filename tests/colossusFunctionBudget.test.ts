@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 describe("Vercel Hobby function budget", () => {
   it("composes Sigma's receiving route into an existing function without dropping any existing API", () => {
-    const entries = readdirSync(new URL("../api/", import.meta.url))
+    const entries = readdirSync(new URL("../api/", import.meta.url), { recursive: true })
       .filter(name => name.endsWith(".ts"));
     expect(entries).toHaveLength(12);
 
